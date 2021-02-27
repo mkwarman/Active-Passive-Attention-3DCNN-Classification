@@ -1,8 +1,12 @@
 
 import pandas
-# import numpy
+import tensorflow as tf
+# import numpy as np
 from os import listdir
 from re import split as re_split
+from random import shuffle
+from tensorflow import keras
+from tensorflow.keras import layers
 
 DATA_LOCATION = '_data'  # Folder containing data files
 FILENAME_REGEX = '_|\\.'  # Splits files by underscore and period
@@ -15,6 +19,9 @@ TIMESLICE_ROWS = 6
 TIMESLICE_COLUMNS = 4
 # Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
 FRAMES_PER_TIMESLICE = 20
+# Percent of data that should be used for training, with the remaining
+#   percentage used for validation
+DATA_SPLIT_PERCENTAGE = 70
 
 # Helpful for converting from machine readable to human readable and back
 label_to_onehot = {}
@@ -102,9 +109,10 @@ def build_timeslices(data, frames_per_timeslice):
 
     for row in data.values:
         # Add one to SENSOR_DATA_COLUMS to account for time column
-        #   which we are skipping
-        frame = row[1:SENSOR_DATA_COLUMNS + 1].reshape(
-            (TIMESLICE_COLUMNS, TIMESLICE_ROWS))
+        #   which we are skipping.
+        # Cast to float32 to fit model
+        frame = row[1:SENSOR_DATA_COLUMNS + 1].astype('float32') \
+                .reshape((TIMESLICE_COLUMNS, TIMESLICE_ROWS))
 
         # The last column in the row is the onehot label
         frame_label = row[len(row) - 1]
@@ -135,12 +143,87 @@ def get_ordered_data(timeslices):
     ordered_labels = []
 
     for key in timeslices.keys():
-        ordered_timeslices.append(timeslices[key])
+        ordered_timeslices.extend(timeslices[key])
         ordered_labels.extend((key,) * len(timeslices[key]))
 
     return ordered_timeslices, ordered_labels
 
 
+# Shuffle two lists maintaining their order
+def shuffle_together(list1, list2):
+    combined = list(zip(list1, list2))
+    shuffle(combined)
+    list1[:], list2[:] = zip(*combined)
+    return list1, list2
+
+
+def split_data(data, data_split_percentage):
+    split_index = round(len(data) * (data_split_percentage / 100))
+    return data[:split_index], data[split_index:]
+
+
+def build_model(columns, rows, depth):
+    # Based on: https://keras.io/examples/vision/3D_image_classification/
+
+    inputs = keras.Input((columns, rows, depth, 1))
+    x = layers.Conv3D(filters=64, kernel_size=3, activation="relu")(inputs)
+    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.BatchNormalization()(x)
+
+    outputs = layers.Dense(units=1, activation="sigmoid")(x)
+
+    model = keras.Model(inputs, outputs, name="3DCNN")
+    return model
+
+
+def define_data_loaders(train_data, train_labels, validation_data,
+                        validation_labels):
+    # Based on: https://keras.io/examples/vision/3D_image_classification/
+    # Define data loaders.
+    train_loader = tf.data.Dataset.from_tensor_slices((train_data,
+                                                       train_labels))
+    validation_loader = tf.data.Dataset.from_tensor_slices((validation_data,
+                                                            validation_labels))
+
+    batch_size = 2
+
+    # Augment the on the fly during training.
+    train_dataset = (
+        train_loader.shuffle(len(train_data))
+        # .map(train_preprocessing)
+        .batch(batch_size)
+        .prefetch(2)
+    )
+
+    # Only rescale.
+    validation_dataset = (
+        validation_loader.shuffle(len(validation_data))
+        # .map(validation_preprocessing)
+        .batch(batch_size)
+        .prefetch(2)
+    )
+
+    return train_dataset, validation_dataset
+
+
 data = get_input_data()
-timeslices = build_timeslices(data, FRAMES_PER_TIMESLICE)
-ordered_timeslices, ordered_labels = get_ordered_data(timeslices)
+timeslice_dict = build_timeslices(data, FRAMES_PER_TIMESLICE)
+ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
+shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
+                                                        ordered_labels)
+train_labels, validation_labels = split_data(shuffled_labels,
+                                             DATA_SPLIT_PERCENTAGE)
+train_data, validation_data = split_data(shuffled_timeslices,
+                                         DATA_SPLIT_PERCENTAGE)
+
+print("\nThe number of training samples is {0}".format(len(train_labels)))
+print("The number of validation samples is {0}\n"
+      .format(len(validation_labels)))
+
+train_dataset, validation_dataset = define_data_loaders(train_data,
+                                                        train_labels,
+                                                        validation_data,
+                                                        validation_labels)
+
+model = build_model(TIMESLICE_COLUMNS, TIMESLICE_ROWS, FRAMES_PER_TIMESLICE)
+model.summary()
