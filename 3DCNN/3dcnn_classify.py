@@ -7,6 +7,19 @@ from re import split as re_split
 DATA_LOCATION = '_data'  # Folder containing data files
 FILENAME_REGEX = '_|\\.'  # Splits files by underscore and period
 
+# Number of columns present in the CSV files that actually contain sensor data
+SENSOR_DATA_COLUMNS = 24
+# Must be a factor of SENSOR_DATA_COLUMNS
+TIMESLICE_ROWS = 6
+# Must be the factor of SENSOR_DATA_COLUMNS complimenting TIMESLICE_ROWS
+TIMESLICE_COLUMNS = 4
+# Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
+FRAMES_PER_TIMESLICE = 20
+
+# Helpful for converting from machine readable to human readable and back
+label_to_onehot = {}
+onehot_to_label = {}
+
 
 def get_filename_label_dict(filenames):
     filename_label_dict = {}
@@ -45,14 +58,20 @@ def get_input_data():
                                'Event',
                                'Comments'],
                       inplace=True)
-        filedata[len(filedata.columns)] = file_label
-        filedata[len(filedata.columns)] = str(label_to_onehot[file_label])
+        filedata['label'] = file_label
+
+        # Assigning tuple to column value
+        filedata['onehot_label'] = ([label_to_onehot[file_label]] *
+                                    len(filedata))
         data = data.append(filedata)
 
     return data
 
 
 def get_onehots(values):
+    # Load this into globals to ease conversion betweek
+    #   machine-readable and human-readable
+    global label_to_onehot, onehot_to_label
     label_to_onehot = {}
     onehot_to_label = {}
     value_list = list(values)
@@ -68,4 +87,60 @@ def get_onehots(values):
     return label_to_onehot, onehot_to_label
 
 
+# Change one deminsional rows into two deminsional data frames,
+#   then group those frames into timeslices organized by label.
+# The remainder of (number of rows for label) / frames_per_timeslice
+#   is discarded with this implementation.
+def build_timeslices(data, frames_per_timeslice):
+    timeslice_dict = {}
+    partial_sets = {}
+
+    # Preload dictionaries
+    for label in list(set(data['onehot_label'])):
+        timeslice_dict[label] = []
+        partial_sets[label] = []
+
+    for row in data.values:
+        # Add one to SENSOR_DATA_COLUMS to account for time column
+        #   which we are skipping
+        frame = row[1:SENSOR_DATA_COLUMNS + 1].reshape(
+            (TIMESLICE_COLUMNS, TIMESLICE_ROWS))
+
+        # The last column in the row is the onehot label
+        frame_label = row[len(row) - 1]
+
+        partial_sets[frame_label].append(frame)
+
+        # If a full timeslice has been constructed, add it to the dict
+        if len(partial_sets[frame_label]) == frames_per_timeslice:
+            timeslice_dict[frame_label].append(partial_sets[frame_label])
+            partial_sets[frame_label] = []
+
+    # BEGIN Informational only
+    print("Constructed {0} timeslices of {1} frames each.".format(
+        len(timeslice_dict.values()), frames_per_timeslice))
+
+    for label in partial_sets.keys():
+        number_left_over = len(partial_sets[label])
+        if (number_left_over > 0):
+            print("{0} frames of label {1} discarded".format(
+                number_left_over, onehot_to_label[label]))
+    # END Informational only
+
+    return timeslice_dict
+
+
+def get_ordered_data(timeslices):
+    ordered_timeslices = []
+    ordered_labels = []
+
+    for key in timeslices.keys():
+        ordered_timeslices.append(timeslices[key])
+        ordered_labels.extend((key,) * len(timeslices[key]))
+
+    return ordered_timeslices, ordered_labels
+
+
 data = get_input_data()
+timeslices = build_timeslices(data, FRAMES_PER_TIMESLICE)
+ordered_timeslices, ordered_labels = get_ordered_data(timeslices)
