@@ -1,36 +1,15 @@
-
 import pandas
 import tensorflow as tf
-import numpy as np
-from os import listdir
+# import numpy as np
+import settings
+from os import listdir, path
 from re import split as re_split
 from random import shuffle
 from tensorflow import keras
 from tensorflow.keras import layers
+from classification_context import ClassificationContext
 
-DATA_LOCATION = '_data'  # Folder containing data files
 FILENAME_REGEX = '_|\\.'  # Splits files by underscore and period
-
-# Number of columns present in the CSV files that actually contain sensor data
-SENSOR_DATA_COLUMNS = 24
-# Must be a factor of SENSOR_DATA_COLUMNS
-TIMESLICE_ROWS = 6
-# Must be the factor of SENSOR_DATA_COLUMNS complimenting TIMESLICE_ROWS
-TIMESLICE_COLUMNS = 4
-# Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
-FRAMES_PER_TIMESLICE = 20
-# Percent of data that should be used for training, with the remaining
-#   percentage used for validation
-DATA_SPLIT_PERCENTAGE = 70
-# Max number of epochs. Training will stop early if no improvement after
-#   TRAINING_PATIENCE number of epochs
-MAX_EPOCHS = 100
-# Number of epochs with no improvement before training stops early
-TRAINING_PATIENCE = 15
-
-# Helpful for converting from machine readable to human readable and back
-label_to_onehot = {}
-onehot_to_label = {}
 
 
 def get_filename_label_dict(filenames):
@@ -54,13 +33,13 @@ def get_filename_label_dict(filenames):
 
 def get_input_data():
     data = pandas.DataFrame()
-    filenames = listdir(DATA_LOCATION)
+    filenames = listdir(settings.DATA_LOCATION)
     filename_label_dict = get_filename_label_dict(filenames)
     distinct_labels = set(filename_label_dict.values())
     label_to_onehot, onehot_to_label = get_onehots(distinct_labels)
 
     for filename in filenames:
-        filedata = pandas.read_csv(DATA_LOCATION + '/' + filename)
+        filedata = pandas.read_csv(settings.DATA_LOCATION + '/' + filename)
         file_label = filename_label_dict[filename]
 
         filedata.drop(columns=['Trigger',
@@ -77,16 +56,18 @@ def get_input_data():
                                     len(filedata))
         data = data.append(filedata)
 
-    return data
+    return data, label_to_onehot, onehot_to_label
 
 
 def get_onehots(values):
     # Load this into globals to ease conversion betweek
     #   machine-readable and human-readable
-    global label_to_onehot, onehot_to_label
     label_to_onehot = {}
     onehot_to_label = {}
-    value_list = list(values)
+
+    # Sort to ensure that when loading a previous model we keep the labels
+    #   in the correct order
+    value_list = sorted(values)
 
     for x in range(len(value_list)):
         # Initialize tuple of length of values
@@ -103,7 +84,7 @@ def get_onehots(values):
 #   then group those frames into timeslices organized by label.
 # The remainder of (number of rows for label) / frames_per_timeslice
 #   is discarded with this implementation.
-def build_timeslices(data, frames_per_timeslice):
+def build_timeslices(data, frames_per_timeslice, onehot_to_label):
     timeslice_dict = {}
     partial_sets = {}
 
@@ -116,8 +97,8 @@ def build_timeslices(data, frames_per_timeslice):
         # Add one to SENSOR_DATA_COLUMS to account for time column
         #   which we are skipping.
         # Cast to float32 to fit model
-        frame = row[1:SENSOR_DATA_COLUMNS + 1].astype('float32') \
-                .reshape((TIMESLICE_COLUMNS, TIMESLICE_ROWS))
+        frame = row[1:settings.SENSOR_DATA_COLUMNS + 1].astype('float32') \
+                .reshape((settings.TIMESLICE_COLUMNS, settings.TIMESLICE_ROWS))
 
         # The last column in the row is the onehot label
         frame_label = row[len(row) - 1]
@@ -215,7 +196,7 @@ def define_data_loaders(train_data, train_labels, validation_data,
     return train_dataset, validation_dataset
 
 
-def train_model(model, train_dataset, validation_dataset):
+def train_model(model, train_dataset, validation_dataset, max_epochs):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     initial_learning_rate = 0.0001
     lr_schedule = keras.optimizers.schedules.ExponentialDecay(
@@ -230,88 +211,69 @@ def train_model(model, train_dataset, validation_dataset):
 
     # Define callbacks
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        "3d_attention_classification.h5", save_best_only=True)
+        settings.MODEL_FILE_NAME, save_best_only=True)
 
     early_stopping_cb = keras.callbacks.EarlyStopping(
         monitor="val_acc",
-        patience=TRAINING_PATIENCE)
+        patience=settings.TRAINING_PATIENCE)
 
     # Train the model, doing validation after each epoch
-    epochs = MAX_EPOCHS
     model.fit(
         train_dataset,
         validation_data=validation_dataset,
-        epochs=epochs,
+        epochs=max_epochs,
         # shuffle = True, # Omitting since I already shuffled the data
         callbacks=[checkpoint_cb, early_stopping_cb]
     )
 
 
-def make_predictions(model, validation_data, validation_labels,
-                     prediction_index):
-    # Based on: https://keras.io/examples/vision/3D_image_classification/
-    # Load best weights
-    prediction_scores = []
+def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS):
+    context = ClassificationContext()
 
-    model.load_weights("3d_attention_classification.h5")
-    prediction = model.predict(
-        np.expand_dims(validation_data[prediction_index],
-                       axis=0))[0]
+    data, label_to_onehot, onehot_to_label = get_input_data()
+    context.set_label_onehot(label_to_onehot, onehot_to_label)
+    timeslice_dict = build_timeslices(data,
+                                      settings.FRAMES_PER_TIMESLICE,
+                                      onehot_to_label)
+    ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
+    shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
+                                                            ordered_labels)
+    train_labels, validation_labels = \
+        split_data(shuffled_labels, settings.DATA_SPLIT_PERCENTAGE)
+    train_data, validation_data = \
+        split_data(shuffled_timeslices, settings.DATA_SPLIT_PERCENTAGE)
+    context.set_data(train_data, train_labels,
+                     validation_data, validation_labels)
 
-    """
-    # Useful to check for any data that the model predicts inaccurately
+    print("\nThe number of training samples is {0}"
+          .format(len(train_labels)))
+    print("The number of validation samples is {0}\n"
+          .format(len(validation_labels)))
 
-    predicted_label = [0] * len(onehot_to_label.keys())
-    maximum = np.max(prediction)
-    hot_index = np.where(prediction == maximum)[0][0]
+    train_dataset, validation_dataset = define_data_loaders(train_data,
+                                                            train_labels,
+                                                            validation_data,
+                                                            validation_labels)
+    context.set_datasets(train_dataset, validation_dataset)
 
-    predicted_label[hot_index] = 1
+    model = build_model(settings.TIMESLICE_COLUMNS,
+                        settings.TIMESLICE_ROWS,
+                        settings.FRAMES_PER_TIMESLICE)
+    model.summary()
 
-    p = onehot_to_label[tuple(predicted_label)]
-    a = onehot_to_label[tuple(validation_labels[prediction_index])]
-    if p != a:
-        print("Predicted label: {0}\nActual label: {1}\nIndex: {2}".format(
-            p,
-            a,
-            prediction_index
-        ))
-    """
+    if force_training or not path.exists(settings.MODEL_FILE_NAME):
+        train_model(model, train_dataset, validation_dataset, max_epochs)
+        print("\nTraining complete.\n")
+    else:
+        print("\nLoaded weights from existing model in {0}\n"
+              .format(settings.MODEL_FILE_NAME))
 
-    for key in onehot_to_label.keys():
-        index = key.index(1)
-        prediction_scores.append((prediction[index], onehot_to_label[key], ))
+    model.load_weights(settings.MODEL_FILE_NAME)
 
-    for score in prediction_scores:
-        print(
-            "This model is {0:.2f} percent confident that label is {1}"
-            .format((100 * score[0]), score[1])
-        )
-    print("The actual label is: " +
-          onehot_to_label[validation_labels[prediction_index]])
+    context.set_model(model)
+
+    return context
 
 
-data = get_input_data()
-timeslice_dict = build_timeslices(data, FRAMES_PER_TIMESLICE)
-ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
-shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
-                                                        ordered_labels)
-train_labels, validation_labels = split_data(shuffled_labels,
-                                             DATA_SPLIT_PERCENTAGE)
-train_data, validation_data = split_data(shuffled_timeslices,
-                                         DATA_SPLIT_PERCENTAGE)
-
-print("\nThe number of training samples is {0}".format(len(train_labels)))
-print("The number of validation samples is {0}\n"
-      .format(len(validation_labels)))
-
-train_dataset, validation_dataset = define_data_loaders(train_data,
-                                                        train_labels,
-                                                        validation_data,
-                                                        validation_labels)
-
-model = build_model(TIMESLICE_COLUMNS, TIMESLICE_ROWS, FRAMES_PER_TIMESLICE)
-model.summary()
-
-train_model(model, train_dataset, validation_dataset)
-
-make_predictions(model, validation_data, validation_labels, 0)
+if (__name__ == '__main__'):
+    do_classification()
