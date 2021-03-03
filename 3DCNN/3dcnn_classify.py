@@ -1,7 +1,7 @@
 
 import pandas
 import tensorflow as tf
-# import numpy as np
+import numpy as np
 from os import listdir
 from re import split as re_split
 from random import shuffle
@@ -165,12 +165,16 @@ def split_data(data, data_split_percentage):
 def build_model(columns, rows, depth):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
 
-    inputs = keras.Input((columns, rows, depth, 1))
+    inputs = keras.Input((depth, columns, rows, 1))
     x = layers.Conv3D(filters=64, kernel_size=3, activation="relu")(inputs)
     x = layers.MaxPool3D(pool_size=2)(x)
     x = layers.BatchNormalization()(x)
 
-    outputs = layers.Dense(units=1, activation="sigmoid")(x)
+    x = layers.GlobalAveragePooling3D()(x)
+    x = layers.Dense(units=512, activation="relu")(x)
+    x = layers.Dropout(0.3)(x)
+
+    outputs = layers.Dense(units=3, activation="sigmoid")(x)
 
     model = keras.Model(inputs, outputs, name="3DCNN")
     return model
@@ -206,6 +210,61 @@ def define_data_loaders(train_data, train_labels, validation_data,
     return train_dataset, validation_dataset
 
 
+def train_model(model, train_dataset, validation_dataset):
+    # Based on: https://keras.io/examples/vision/3D_image_classification/
+    initial_learning_rate = 0.0001
+    lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=100000,
+        decay_rate=0.96,
+        staircase=True)
+
+    model.compile(loss="binary_crossentropy",
+                  optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
+                  metrics=["acc"])
+
+    # Define callbacks
+    checkpoint_cb = keras.callbacks.ModelCheckpoint(
+        "3d_attention_classification.h5", save_best_only=True)
+
+    early_stopping_cb = keras.callbacks.EarlyStopping(monitor="val_acc",
+                                                      patience=15)
+
+    # Train the model, doing validation after each epoch
+    epochs = 100
+    model.fit(
+        train_dataset,
+        validation_data=validation_dataset,
+        epochs=epochs,
+        # shuffle = True, # Omitting since I already shuffled the data
+        callbacks=[checkpoint_cb, early_stopping_cb]
+    )
+
+
+def make_predictions(model, validation_data, validation_labels,
+                     prediction_index):
+    # Based on: https://keras.io/examples/vision/3D_image_classification/
+    # Load best weights
+    prediction_scores = []
+
+    model.load_weights("3d_attention_classification.h5")
+    prediction = model.predict(
+        np.expand_dims(validation_data[prediction_index],
+                       axis=0))[0]
+
+    for key in onehot_to_label.keys():
+        index = key.index(1)
+        prediction_scores.append((prediction[index], onehot_to_label[key], ))
+
+    for score in prediction_scores:
+        print(
+            "This model is {0:.2f} percent confident that label is {1}"
+            .format((100 * score[0]), score[1])
+        )
+    print("The actual label is: " +
+          onehot_to_label[validation_labels[prediction_index]])
+
+
 data = get_input_data()
 timeslice_dict = build_timeslices(data, FRAMES_PER_TIMESLICE)
 ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
@@ -227,3 +286,7 @@ train_dataset, validation_dataset = define_data_loaders(train_data,
 
 model = build_model(TIMESLICE_COLUMNS, TIMESLICE_ROWS, FRAMES_PER_TIMESLICE)
 model.summary()
+
+train_model(model, train_dataset, validation_dataset)
+
+make_predictions(model, validation_data, 0)

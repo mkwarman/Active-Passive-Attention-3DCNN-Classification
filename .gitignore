@@ -133,3 +133,4 @@ dmypy.json
 _data*
 venv*
 .vscode
+*.h5
