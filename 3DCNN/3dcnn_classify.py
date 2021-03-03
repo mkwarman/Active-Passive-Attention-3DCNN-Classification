@@ -22,6 +22,11 @@ FRAMES_PER_TIMESLICE = 20
 # Percent of data that should be used for training, with the remaining
 #   percentage used for validation
 DATA_SPLIT_PERCENTAGE = 70
+# Max number of epochs. Training will stop early if no improvement after
+#   TRAINING_PATIENCE number of epochs
+MAX_EPOCHS = 100
+# Number of epochs with no improvement before training stops early
+TRAINING_PATIENCE = 15
 
 # Helpful for converting from machine readable to human readable and back
 label_to_onehot = {}
@@ -227,11 +232,12 @@ def train_model(model, train_dataset, validation_dataset):
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
         "3d_attention_classification.h5", save_best_only=True)
 
-    early_stopping_cb = keras.callbacks.EarlyStopping(monitor="val_acc",
-                                                      patience=15)
+    early_stopping_cb = keras.callbacks.EarlyStopping(
+        monitor="val_acc",
+        patience=TRAINING_PATIENCE)
 
     # Train the model, doing validation after each epoch
-    epochs = 100
+    epochs = MAX_EPOCHS
     model.fit(
         train_dataset,
         validation_data=validation_dataset,
@@ -251,6 +257,25 @@ def make_predictions(model, validation_data, validation_labels,
     prediction = model.predict(
         np.expand_dims(validation_data[prediction_index],
                        axis=0))[0]
+
+    """
+    # Useful to check for any data that the model predicts inaccurately
+
+    predicted_label = [0] * len(onehot_to_label.keys())
+    maximum = np.max(prediction)
+    hot_index = np.where(prediction == maximum)[0][0]
+
+    predicted_label[hot_index] = 1
+
+    p = onehot_to_label[tuple(predicted_label)]
+    a = onehot_to_label[tuple(validation_labels[prediction_index])]
+    if p != a:
+        print("Predicted label: {0}\nActual label: {1}\nIndex: {2}".format(
+            p,
+            a,
+            prediction_index
+        ))
+    """
 
     for key in onehot_to_label.keys():
         index = key.index(1)
@@ -289,4 +314,4 @@ model.summary()
 
 train_model(model, train_dataset, validation_dataset)
 
-make_predictions(model, validation_data, 0)
+make_predictions(model, validation_data, validation_labels, 0)
