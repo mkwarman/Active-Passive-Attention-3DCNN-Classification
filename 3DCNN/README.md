@@ -1,7 +1,8 @@
 # 3DCNN
 
-## Installation:
-**You must use Python 3.8**
+## Installation
+
+This program has only been tested using **Python 3.8**. Other versions will require you to manually adjust the requirements listed in requirements.txt. I have tried using both Python 3.7 and Python 3.9 but ultimately gave up. It is much easier to download a Python 3.8 binary from [here](https://www.python.org/downloads/) and use it to create a virtual environment as suggested below.
 
 1. Open a command prompt or terminal window
 1. Clone this project to the directory of your choice
@@ -12,10 +13,12 @@
    * If using MacOS/Linux, execute `source ./venv/bin/activate`
    * If using Windows, execute `.\venv\Scripts\activate`
 
-## Setup:
+## Setup
+
 Setup differs based on what data you wish to classify.
 
-### Setup for DSI-24 data:
+### Setup for DSI-24 data
+
 1. Download the EEG data captured using the DSI-24
 1. If the data is compressed in a .zip file, extract it
 1. Create a directory called `_data` in the cloned project folder where the EEG data files will be placed
@@ -23,15 +26,20 @@ Setup differs based on what data you wish to classify.
 1. Ensure that the filenames match the format `subjectN_L.csv` where N is the subject number and L is the label for the data
 1. Execute the following in a command prompt or terminal window to remove unneeded header information from the files: `python preprocess_files.py`
 
-### Setup for STEW data:
+### Setup for STEW data
+
 1. Download the STEW data from [here](https://ieee-dataport.org/open-access/stew-simultaneous-task-eeg-workload-dataset#files)
+
 > You will need to create a free account to download the files
+
 1. Extract the compressed .zip file
 1. Create a directory called `_data_stew` in the cloned project folder
 1. Move all files in the extracted STEW data folder except for `ratings.txt` to the `_data_stew` directory
+
 > If you want to classify based on three levels (low/medium/high) instead of the default low/high, you will need to update the file names to change "lo" or "hi" to "me" based on the ratings given in the ratings.txt file
 
-## Running:
+## Running
+
 1. Navigate to the cloned project folder in a command prompt or terminal window if you have not already done so
 1. Activate the virtual environment if you have not already done so:
    * If using MacOS/Linux, execute `source venv/bin/activate`
@@ -46,5 +54,6 @@ Setup differs based on what data you wish to classify.
    * Execute `context.make_predictions(N)` to make N predictions, the program will output the level of certainty for each label. You can include the parameter `offset=X` to skip X number of data points before making the predictions
    * Execute `context.check_predictions(N)` to check N predictions, the program will only output when the predictions are incorrect. You could then use `make_predictions` (above) with an offset to determine the program's certainty of each label if desired. You can include the parameter `offset=X` to skip X number of data points before making the predictions. You can include the parameter `verbose=True` to force the program to output when predictions are correct as well as incorrect.
 
-## Advanced Usage:
+## Advanced Usage
+
 To use different data or change how the program interacts with given data, check out the `settings.py` (and `settings_stew.py`) file. You can't change everything there, for example to adjust the model you would still have to update the script itself, but you can make changes to run the same model on differently structured data.
