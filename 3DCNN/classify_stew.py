@@ -190,7 +190,7 @@ def build_model(columns, rows, depth, output_units):
 
 
 def define_data_loaders(train_data, train_labels, validation_data,
-                        validation_labels, batch_size=2):
+                        validation_labels, batch_size):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     # Define data loaders.
     train_loader = tf.data.Dataset.from_tensor_slices((train_data,
@@ -260,7 +260,7 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
 
 
 def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
-                      batch_size=2):
+                      batch_size=settings.BATCH_SIZE):
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data()
@@ -307,10 +307,11 @@ def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
         train_model(model, train_dataset, validation_dataset, max_epochs)
         print("\nTraining complete.\n")
     else:
+        model.load_weights(settings.MODEL_FILE_NAME)
         print("\nLoaded weights from existing model in {0}\n"
               .format(settings.MODEL_FILE_NAME))
 
-    context.set_model(model.load_weights(settings.MODEL_FILE_NAME))
+    context.set_model(model)
 
     return context
 

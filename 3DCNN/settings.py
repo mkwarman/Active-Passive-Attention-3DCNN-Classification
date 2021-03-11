@@ -24,11 +24,11 @@ DATA_SPLIT_PERCENTAGE = 70
 #   TRAINING_PATIENCE number of epochs
 MAX_EPOCHS = 100
 
+# Batch size to use when training
+BATCH_SIZE = 32
+
 # Number of epochs with no improvement before training stops early
 TRAINING_PATIENCE = 15
-
-# Number of predictions to make after completing model training
-PREDICTIONS = 10
 
 # Trained model filename
 MODEL_FILE_NAME = '3d_attention_classification.h5'
