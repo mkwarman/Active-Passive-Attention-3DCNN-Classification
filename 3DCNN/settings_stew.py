@@ -1,17 +1,17 @@
 # Folder containing data files
-DATA_LOCATION = '_data'
+DATA_LOCATION = '_data_stew_3_level'
 
 # Number of columns present in the CSV files that actually contain sensor data
-SENSOR_DATA_COLUMNS = 24
+SENSOR_DATA_COLUMNS = 16
 
 # Must be a factor of SENSOR_DATA_COLUMNS
-TIMESLICE_ROWS = 6
+TIMESLICE_ROWS = 4
 
 # Must be the factor of SENSOR_DATA_COLUMNS complimenting TIMESLICE_ROWS
 TIMESLICE_COLUMNS = 4
 
 # Must evenly distribute along rows and columns
-KERNEL_SIZE = 3
+KERNEL_SIZE = 2
 
 # Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
 FRAMES_PER_TIMESLICE = 20
@@ -31,4 +31,4 @@ TRAINING_PATIENCE = 15
 PREDICTIONS = 10
 
 # Trained model filename
-MODEL_FILE_NAME = '3d_attention_classification.h5'
+MODEL_FILE_NAME = '3d_attention_classification_stew.h5'

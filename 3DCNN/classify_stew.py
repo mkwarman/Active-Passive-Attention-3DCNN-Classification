@@ -1,13 +1,25 @@
+"""
+This seems to work, but there is a ton of data and training is very slow
+It also seems to not have very good accuracy when training with a smaller
+amount of data (just subject 1). Maybe consider implementing
+interpolation:
+    https://stackoverflow.com/questions/33259896/python-interpolation-2d-array-for-huge-arrays  # noqa
+then adjust the kernel size to something larger that will split the
+data evenly. It might not help much, but it will be good learning if
+nothing else.
+"""
+
 import pandas
 import tensorflow as tf
 # import numpy as np
-import settings
+import settings_stew as settings
 from os import listdir, path
 from re import split as re_split
 from random import shuffle
 from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
+from keras.optimizers import SGD
 from classification_context import ClassificationContext
 
 FILENAME_REGEX = '_|\\.'  # Splits files by underscore and period
@@ -54,7 +66,7 @@ def get_onehots(values):
 
 
 def get_input_data():
-    data = []
+    data = []  # pandas.DataFrame()
     filenames = listdir(settings.DATA_LOCATION)
 
     # Get rid of things like .DS_Store
@@ -65,22 +77,22 @@ def get_input_data():
 
     print("Loading input data files:")
     for filename in tqdm(filenames):
-        filedata = pandas.read_csv(settings.DATA_LOCATION + '/' + filename)
+        # Use delim_whitespace=True to load from whitespace seperated .txt
+        #   files
+        file_location = settings.DATA_LOCATION + '/' + filename
+        filedata = pandas.read_csv(file_location, delim_whitespace=True,
+                                   index_col=None, header=None)
         file_label = filename_label_dict[filename]
 
-        filedata.drop(columns=['Trigger',
-                               'Time_Offset',
-                               'ADC_Status',
-                               'ADC_Sequence',
-                               'Event',
-                               'Comments'],
-                      inplace=True)
+        filedata[len(filedata.columns)] = 0
+        filedata[len(filedata.columns)] = 0
+
         filedata['label'] = file_label
 
         # Assigning tuple to column value
         filedata['onehot_label'] = ([label_to_onehot[file_label]] *
                                     len(filedata))
-        data = data.append(filedata)
+        data.append(filedata)
 
     print("Loaded all data successfully.\n")
 
@@ -102,10 +114,8 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
         partial_sets[label] = []
 
     for row in data.values:
-        # Add one to SENSOR_DATA_COLUMS to account for time column
-        #   which we are skipping.
         # Cast to float32 to fit model
-        frame = row[1:settings.SENSOR_DATA_COLUMNS + 1].astype('float32') \
+        frame = row[:settings.SENSOR_DATA_COLUMNS].astype('float32') \
                 .reshape((settings.TIMESLICE_COLUMNS, settings.TIMESLICE_ROWS))
 
         # The last column in the row is the onehot label
@@ -180,15 +190,13 @@ def build_model(columns, rows, depth, output_units):
 
 
 def define_data_loaders(train_data, train_labels, validation_data,
-                        validation_labels):
+                        validation_labels, batch_size=2):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     # Define data loaders.
     train_loader = tf.data.Dataset.from_tensor_slices((train_data,
                                                        train_labels))
     validation_loader = tf.data.Dataset.from_tensor_slices((validation_data,
                                                             validation_labels))
-
-    batch_size = 2
 
     # Augment the on the fly during training.
     train_dataset = (
@@ -211,6 +219,7 @@ def define_data_loaders(train_data, train_labels, validation_data,
 
 def train_model(model, train_dataset, validation_dataset, max_epochs):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
+    """
     initial_learning_rate = 0.0001
     lr_schedule = keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate,
@@ -218,12 +227,18 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
         decay_rate=0.96,
         staircase=True)
 
-    model.compile(loss="categorical_crossentropy",
-                  optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
-                  metrics=["acc"])
+    # model.compile(loss="categorical_crossentropy",
+    #               optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
+    #               metrics=["acc"])
     # model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
     #               loss=tf.keras.losses.CategoricalCrossentropy(),
     #               metrics=[tf.keras.metrics.CategoricalCrossentropy()])
+    """
+    opt = SGD(lr=0.00001)
+
+    model.compile(loss="categorical_crossentropy",
+                  optimizer=opt,
+                  metrics=["acc"])
 
     # Define callbacks
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
@@ -239,12 +254,13 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
         train_dataset,
         validation_data=validation_dataset,
         epochs=max_epochs,
-        # shuffle = True, # Omitting since I already shuffled the data
+        shuffle=True,  # Omitting since I already shuffled the data
         callbacks=[checkpoint_cb, early_stopping_cb]
     )
 
 
-def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS):
+def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
+                      batch_size=2):
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data()
@@ -275,7 +291,8 @@ def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS):
     train_dataset, validation_dataset = define_data_loaders(train_data,
                                                             train_labels,
                                                             validation_data,
-                                                            validation_labels)
+                                                            validation_labels,
+                                                            batch_size)
     context.set_datasets(train_dataset, validation_dataset)
 
     print("Building model...\n")
