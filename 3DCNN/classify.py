@@ -80,7 +80,7 @@ def get_input_data():
         # Assigning tuple to column value
         filedata['onehot_label'] = ([label_to_onehot[file_label]] *
                                     len(filedata))
-        data = data.append(filedata)
+        data.append(filedata)
 
     print("Loaded all data successfully.\n")
 

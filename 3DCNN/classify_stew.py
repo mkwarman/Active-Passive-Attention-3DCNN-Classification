@@ -66,7 +66,7 @@ def get_onehots(values):
 
 
 def get_input_data():
-    data = []  # pandas.DataFrame()
+    data = []
     filenames = listdir(settings.DATA_LOCATION)
 
     # Get rid of things like .DS_Store
