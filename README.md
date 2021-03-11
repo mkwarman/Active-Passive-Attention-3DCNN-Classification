@@ -1,6 +1,4 @@
-# Source Localization of Electroencephalogram (EEG) Waves with Convolutional Neural Network - Spring 2021 IT-Capstone
-
-This repository contains information about and source code for Team 6's IT Capstone project: Source Localization of Electroencephalogram (EEG) Waves with Convolutional Neural Network
+# Comparison of Active and Passive Attention Based Tasks using EEG Waves with Three Dimensional Convolutional Neural Network (3DCNN)
 
 ## 3DCNN
 
