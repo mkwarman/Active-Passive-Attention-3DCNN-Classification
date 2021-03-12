@@ -3,7 +3,7 @@ This seems to work, but there is a ton of data and training is very slow
 It also seems to not have very good accuracy when training with a smaller
 amount of data (just subject 1). Maybe consider implementing
 interpolation:
-    https://stackoverflow.com/questions/33259896/python-interpolation-2d-array-for-huge-arrays  # noqa
+    https://stackoverflow.com/questions/33259896/python-interpolation-2d-array-for-huge-arrays
 then adjust the kernel size to something larger that will split the
 data evenly. It might not help much, but it will be good learning if
 nothing else.
@@ -30,7 +30,7 @@ def get_filename_label_dict(filenames):
 
     for filename in filenames:
         """
-        Filenames will be in the format subjectN_L.csv
+        Filenames will be in the format subjectN_L.txt
         where N represents subject number and L represents
         the action the subject was taking at the time (label)
 
