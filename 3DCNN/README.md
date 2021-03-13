@@ -57,3 +57,5 @@ Setup differs based on what data you wish to classify.
 ## Advanced Usage
 
 To use different data or change how the program interacts with given data, check out the `settings.py` (and `settings_stew.py`) file. You can't change everything there, for example to adjust the model you would still have to update the script itself, but you can make changes to run the same model on differently structured data.
+
+NOTE: You must install matplotlib using `pip install matplotlib` to generate graphs. It is currently not included in the requirements.txt file.
