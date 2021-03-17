@@ -58,7 +58,7 @@ def partition_eeg_bands(data, sample_rate, plot=False):
 
 
 def test_data(filepath, column, time_start, time_stop):
-    filedata = pd.read_csv('_data/subject1_eyesclosed.csv')
+    filedata = pd.read_csv(filepath)
     filedata.drop(columns=['Trigger',
                            'Time_Offset',
                            'ADC_Status',
@@ -67,8 +67,6 @@ def test_data(filepath, column, time_start, time_stop):
                            'Comments'],
                   inplace=True)
 
-    # data = (filedata[filedata.Time >= time_start &
-    #                  filedata.Time <= time_stop][column]).to_numpy()
     data = (filedata[filedata['Time']
             .between(time_start, time_stop)][column]
             .to_numpy())
