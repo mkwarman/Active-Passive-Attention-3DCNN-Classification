@@ -69,11 +69,11 @@ def test_data(filepath='_data/subject1_eyesclosed.csv',
                            'Event',
                            'Comments'],
                   inplace=True)
-
+    hz = 300
     data = (filedata[filedata['Time']
             .between(time_start, time_end)][column]
             .to_numpy())
-    partition_eeg_bands(data, 0.0033, True)
+    partition_eeg_bands(data, 1 / hz, True)
 
 
 def test_data_stew(filepath='_data_stew/sub01_hi.txt',
