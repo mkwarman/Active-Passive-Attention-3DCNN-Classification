@@ -57,7 +57,10 @@ def partition_eeg_bands(data, sample_rate, plot=False):
     return eeg_band_fft
 
 
-def test_data(filepath, column, time_start, time_stop):
+def test_data(filepath='_data/subject1_eyesclosed.csv',
+              column='P3',
+              time_start=0.0,
+              time_end=2.0):
     filedata = pd.read_csv(filepath)
     filedata.drop(columns=['Trigger',
                            'Time_Offset',
@@ -68,6 +71,18 @@ def test_data(filepath, column, time_start, time_stop):
                   inplace=True)
 
     data = (filedata[filedata['Time']
-            .between(time_start, time_stop)][column]
+            .between(time_start, time_end)][column]
             .to_numpy())
     partition_eeg_bands(data, 0.0033, True)
+
+
+def test_data_stew(filepath='_data_stew/sub01_hi.txt',
+                   column=0,
+                   time_start=0.0,
+                   time_end=2.0):
+    filedata = pd.read_csv(filepath, delim_whitespace=True,
+                           index_col=None, header=None)
+    hz = 128
+    data = (filedata[int(time_start * hz):int(time_end * hz)][column]
+            .to_numpy())
+    partition_eeg_bands(data, 1 / hz, True)
