@@ -33,8 +33,6 @@ def get_filename_label_dict(filenames):
 
 
 def get_onehots(values):
-    # Load this into globals to ease conversion betweek
-    #   machine-readable and human-readable
     label_to_onehot = {}
     onehot_to_label = {}
 
@@ -133,6 +131,14 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
     # END Informational only
 
     return timeslice_dict
+
+
+"""
+def get_fourier_data(timeslices)
+    fourier_timeslice_dict = {}
+
+    for key in timeslices.keys():
+"""
 
 
 def get_ordered_data(timeslices):
@@ -247,7 +253,8 @@ def do_classification(force_training=False,
                       max_epochs=settings.MAX_EPOCHS,
                       batch_size=settings.BATCH_SIZE,
                       data_location=settings.DATA_LOCATION,
-                      model_file_name=settings.MODEL_FILE_NAME):
+                      model_file_name=settings.MODEL_FILE_NAME,
+                      fourier=False):
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data(data_location)

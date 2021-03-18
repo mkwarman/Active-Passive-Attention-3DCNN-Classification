@@ -45,8 +45,6 @@ def get_filename_label_dict(filenames):
 
 
 def get_onehots(values):
-    # Load this into globals to ease conversion betweek
-    #   machine-readable and human-readable
     label_to_onehot = {}
     onehot_to_label = {}
 

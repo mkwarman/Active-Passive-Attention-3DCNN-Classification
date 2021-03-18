@@ -21,7 +21,17 @@ def sum_band_data(ft_data, ft_x):
     return eeg_band_fft
 
 
-def partition_eeg_bands(data, sample_rate, plot=False):
+def normalize_band_distribution(eeg_band_data):
+    normalized_eeg_band_data = {}
+    aggregate_sum = sum(eeg_band_data.values())
+
+    for key in eeg_band_data.keys():
+        normalized_eeg_band_data[key] = eeg_band_data[key]/aggregate_sum
+
+    return normalized_eeg_band_data
+
+
+def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
     num_samples = len(data)
 
     # Normalize volume about x axis
@@ -52,9 +62,23 @@ def partition_eeg_bands(data, sample_rate, plot=False):
 
         df.plot.bar(x='band', y='value', legend=False,
                     title='EEG wave distribution')
+        plt.show()
+
+    if unnormalized:
+        return eeg_band_fft
+
+    normalized_eeg_band_fft = normalize_band_distribution(eeg_band_fft)
+
+    if plot:
+        df = pd.DataFrame(columns=['band', 'percent'])
+        df['band'] = EEG_BANDS.keys()
+        df['percent'] = [normalized_eeg_band_fft[band] for band in EEG_BANDS]
+
+        df.plot.bar(x='band', y='percent', legend=False,
+                    title='EEG wave distribution percentage')
         plt.show(block=True)
 
-    return eeg_band_fft
+    return normalized_eeg_band_fft
 
 
 def test_data(filepath='_data/subject1_eyesclosed.csv',
