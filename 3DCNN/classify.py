@@ -10,7 +10,7 @@ from tensorflow.keras import layers
 from tqdm import tqdm
 from classification_context import ClassificationContext
 
-FILENAME_REGEX = '_|\\.'  # Splits files by underscore and period
+FILENAME_REGEX = '-|\\.'  # Splits files by dash and period
 
 
 def get_filename_label_dict(filenames):
@@ -18,7 +18,7 @@ def get_filename_label_dict(filenames):
 
     for filename in filenames:
         """
-        Filenames will be in the format subjectN_L.csv
+        Filenames will be in the format subjectN-L.csv
         where N represents subject number and L represents
         the action the subject was taking at the time (label)
 
@@ -53,9 +53,9 @@ def get_onehots(values):
     return label_to_onehot, onehot_to_label
 
 
-def get_input_data():
+def get_input_data(data_location):
     data = []
-    filenames = listdir(settings.DATA_LOCATION)
+    filenames = listdir(data_location)
 
     # Get rid of things like .DS_Store
     filenames = list(filter(lambda f: not f.startswith("."), filenames))
@@ -65,7 +65,7 @@ def get_input_data():
 
     print("Loading input data files:")
     for filename in tqdm(filenames):
-        filedata = pandas.read_csv(settings.DATA_LOCATION + '/' + filename)
+        filedata = pandas.read_csv(data_location + '/' + filename)
         file_label = filename_label_dict[filename]
 
         filedata.drop(columns=['Trigger',
@@ -207,7 +207,8 @@ def define_data_loaders(train_data, train_labels, validation_data,
     return train_dataset, validation_dataset
 
 
-def train_model(model, train_dataset, validation_dataset, max_epochs):
+def train_model(model, train_dataset, validation_dataset, max_epochs,
+                model_file_name):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     initial_learning_rate = 0.0001
     lr_schedule = keras.optimizers.schedules.ExponentialDecay(
@@ -225,7 +226,7 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
 
     # Define callbacks
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        settings.MODEL_FILE_NAME, save_best_only=True)
+        model_file_name, save_best_only=True)
 
     early_stopping_cb = keras.callbacks.EarlyStopping(
         monitor="val_acc",
@@ -242,11 +243,14 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
     )
 
 
-def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
-                      batch_size=settings.BATCH_SIZE):
+def do_classification(force_training=False,
+                      max_epochs=settings.MAX_EPOCHS,
+                      batch_size=settings.BATCH_SIZE,
+                      data_location=settings.DATA_LOCATION,
+                      model_file_name=settings.MODEL_FILE_NAME):
     context = ClassificationContext()
 
-    data, label_to_onehot, onehot_to_label = get_input_data()
+    data, label_to_onehot, onehot_to_label = get_input_data(data_location)
     context.set_label_onehot(label_to_onehot, onehot_to_label)
 
     print("Building timeslices...")
@@ -286,13 +290,14 @@ def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
                         len(onehot_to_label.keys()))
     model.summary()
 
-    if force_training or not path.exists(settings.MODEL_FILE_NAME):
-        train_model(model, train_dataset, validation_dataset, max_epochs)
+    if force_training or not path.exists(model_file_name):
+        train_model(model, train_dataset, validation_dataset, max_epochs,
+                    model_file_name)
         print("\nTraining complete.\n")
     else:
-        model.load_weights(settings.MODEL_FILE_NAME)
+        model.load_weights(model_file_name)
         print("\nLoaded weights from existing model in {0}\n"
-              .format(settings.MODEL_FILE_NAME))
+              .format(model_file_name))
 
     context.set_model(model)
 
