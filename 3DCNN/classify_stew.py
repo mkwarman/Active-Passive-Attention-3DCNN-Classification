@@ -11,7 +11,7 @@ nothing else.
 
 import pandas
 import tensorflow as tf
-# import numpy as np
+import numpy as np
 import settings_stew as settings
 from os import listdir, path
 from re import split as re_split
@@ -121,9 +121,11 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
 
         partial_sets[frame_label].append(frame)
 
-        # If a full timeslice has been constructed, add it to the dict
+        # If a full timeslice has been constructed, stack in sequence
+        #   and add it to the dict
         if len(partial_sets[frame_label]) == frames_per_timeslice:
-            timeslice_dict[frame_label].append(partial_sets[frame_label])
+            timeslice_dict[frame_label].append(
+               np.stack(partial_sets[frame_label]))
             partial_sets[frame_label] = []
 
     # BEGIN Informational only
