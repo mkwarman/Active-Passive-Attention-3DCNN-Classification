@@ -4,6 +4,9 @@ DATA_LOCATION = '_data'
 # Number of columns present in the CSV files that actually contain sensor data
 SENSOR_DATA_COLUMNS = 24
 
+# Number of sensor samples per second
+SENSOR_HERTZ = 300
+
 # Must be a factor of SENSOR_DATA_COLUMNS
 TIMESLICE_ROWS = 6
 
@@ -14,7 +17,7 @@ TIMESLICE_COLUMNS = 4
 KERNEL_SIZE = 3
 
 # Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
-FRAMES_PER_TIMESLICE = 20
+FRAMES_PER_TIMESLICE = 600
 
 # Percent of data that should be used for training, with the remaining
 #   percentage used for validation

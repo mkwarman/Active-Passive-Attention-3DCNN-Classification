@@ -33,6 +33,7 @@ def normalize_band_distribution(eeg_band_data):
 
 def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
     num_samples = len(data)
+    hertz = 1 / sample_rate
 
     # Normalize volume about x axis
     minimum = np.min(data)
@@ -45,7 +46,7 @@ def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
         plt.plot(data)
 
     ft_data = fft(data)
-    ft_x = fftfreq(num_samples, sample_rate)[:num_samples//2]
+    ft_x = fftfreq(num_samples, hertz)[:num_samples//2]
 
     if plot:
         plt.figure(2)
@@ -81,6 +82,10 @@ def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
     return normalized_eeg_band_fft
 
 
+def get_bands():
+    return EEG_BANDS
+
+
 def test_data(filepath='_data/subject1_eyesclosed.csv',
               column='P3',
               time_start=0.0,
@@ -97,7 +102,7 @@ def test_data(filepath='_data/subject1_eyesclosed.csv',
     data = (filedata[filedata['Time']
             .between(time_start, time_end)][column]
             .to_numpy())
-    partition_eeg_bands(data, 1 / hz, True)
+    partition_eeg_bands(data, hz, True)
 
 
 def test_data_stew(filepath='_data_stew/sub01_hi.txt',
@@ -109,4 +114,4 @@ def test_data_stew(filepath='_data_stew/sub01_hi.txt',
     hz = 128
     data = (filedata[int(time_start * hz):int(time_end * hz)][column]
             .to_numpy())
-    partition_eeg_bands(data, 1 / hz, True)
+    partition_eeg_bands(data, hz, True)

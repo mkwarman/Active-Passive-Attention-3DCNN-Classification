@@ -1,6 +1,7 @@
 import pandas
 import tensorflow as tf
 import numpy as np
+import fourier
 import settings
 from os import listdir, path
 from re import split as re_split
@@ -135,12 +136,35 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
     return timeslice_dict
 
 
-"""
-def get_fourier_data(timeslices)
-    fourier_timeslice_dict = {}
+def get_fourier_data_for_frames(frames, eeg_bands):
+    # Create stack of planes for each eeg band with values corresponding to
+    #   each sensor
+    fft_bands = np.zeros((len(eeg_bands), settings.TIMESLICE_COLUMNS,
+                          settings.TIMESLICE_ROWS))
+    for i in range(settings.TIMESLICE_COLUMNS):
+        for j in range(settings.TIMESLICE_ROWS):
+            band_data = list(fourier.partition_eeg_bands(
+                frames[:, i, j], settings.SENSOR_HERTZ).values())
+            for band in eeg_bands:
+                fft_bands[band, i, j] = band_data[band]
 
-    for key in timeslices.keys():
-"""
+    return fft_bands
+
+
+def load_fourier_data(timeslices):
+    keys = list(timeslices.keys())
+
+    eeg_bands = range(len(fourier.get_bands().keys()))
+    fft_data = {}
+    for key in keys:
+        fft_data[key] = []
+        for frames in timeslices[key]:
+            fft_frames = get_fourier_data_for_frames(frames, eeg_bands)
+            #  fft_data[key].append(fft_frames)
+            frames_with_fft_frames = np.append(frames, fft_frames, 0)
+            fft_data[key].append(frames_with_fft_frames)
+
+    return fft_data
 
 
 def get_ordered_data(timeslices):
@@ -267,6 +291,7 @@ def do_classification(force_training=False,
     timeslice_dict = build_timeslices(data,
                                       settings.FRAMES_PER_TIMESLICE,
                                       onehot_to_label)
+    context.set_timeslice_dict(timeslice_dict)
     ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
     shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
                                                             ordered_labels)
@@ -314,4 +339,11 @@ def do_classification(force_training=False,
 
 
 if (__name__ == '__main__'):
-    do_classification(force_training=True, data_location='_data_active', max_epochs=10)
+    global context
+    context = do_classification(force_training=False,
+                                data_location='_data_active',
+                                max_epochs=10)
+    key = list(context.timeslice_dict.keys())[0]
+    frame = context.timeslice_dict[key][0]
+    series = frame[:, 0, 0]
+    fourier.partition_eeg_bands(series, settings.SENSOR_HERTZ, plot=True)
