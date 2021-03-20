@@ -86,7 +86,7 @@ def get_bands():
     return EEG_BANDS
 
 
-def test_data(filepath='_data/subject1_eyesclosed.csv',
+def test_data(filepath='_data/subject1-eyesclosed.csv',
               column='P3',
               time_start=0.0,
               time_end=2.0):
