@@ -118,13 +118,13 @@ class ClassificationContext:
             self.check_prediction_for_index(index + offset, verbose)
 
     def get_average_prediction_error(self):
-        confidence_differences = []
-        print("Calculating prediction confidence differences:")
+        prediction_errors = []
+        print("Calculating average prediction error:")
         label_indices = trange(len(self.validation_labels))
         for index in label_indices:
-            confidence_differences.extend(
+            prediction_errors.extend(
                 self.get_prediction_errors_for_index(index))
 
-        average_confidence_difference = str(np.mean(confidence_differences))
-        print("Average confidence difference: " +
-              average_confidence_difference)
+        average_prediction_error = str(np.mean(prediction_errors))
+        print("Average prediction error: " +
+              average_prediction_error)
