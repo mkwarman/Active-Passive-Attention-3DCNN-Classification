@@ -4,6 +4,9 @@ DATA_LOCATION = '_data_stew'
 # Number of columns present in the CSV files that actually contain sensor data
 SENSOR_DATA_COLUMNS = 16
 
+# Number of sensor samples per second
+SENSOR_HERTZ = 128
+
 # Must be a factor of SENSOR_DATA_COLUMNS
 TIMESLICE_ROWS = 4
 
@@ -30,5 +33,8 @@ BATCH_SIZE = 32
 # Number of epochs with no improvement before training stops early
 TRAINING_PATIENCE = 15
 
-# Trained model filename
+# Model filename
 MODEL_FILE_NAME = '3d_attention_classification_stew.h5'
+
+# Trained model weidhts filename
+MODEL_WEIGHTS_FILE_NAME = '3d_attention_classification_weights_stew.h5'

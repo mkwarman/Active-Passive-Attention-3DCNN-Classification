@@ -4,6 +4,9 @@ DATA_LOCATION = '_data'
 # Number of columns present in the CSV files that actually contain sensor data
 SENSOR_DATA_COLUMNS = 24
 
+# Number of sensor samples per second
+SENSOR_HERTZ = 300
+
 # Must be a factor of SENSOR_DATA_COLUMNS
 TIMESLICE_ROWS = 6
 
@@ -22,7 +25,7 @@ DATA_SPLIT_PERCENTAGE = 70
 
 # Max number of epochs. Training will stop early if no improvement after
 #   TRAINING_PATIENCE number of epochs
-MAX_EPOCHS = 100
+MAX_EPOCHS = 20
 
 # Batch size to use when training
 BATCH_SIZE = 32
@@ -30,5 +33,8 @@ BATCH_SIZE = 32
 # Number of epochs with no improvement before training stops early
 TRAINING_PATIENCE = 15
 
-# Trained model filename
+# Model filename
 MODEL_FILE_NAME = '3d_attention_classification.h5'
+
+# Trained model weights filename
+MODEL_WEIGHTS_FILE_NAME = '3d_attention_classification_weights.h5'

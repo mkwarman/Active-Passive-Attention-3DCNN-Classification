@@ -4,6 +4,7 @@ from tqdm import trange
 
 class ClassificationContext:
     def __init__(self):
+        self.timeslice_dict = {}
         self.train_data = []
         self.train_labels = []
         self.validation_data = []
@@ -13,6 +14,9 @@ class ClassificationContext:
         self.label_to_onehot = {}
         self.onehot_to_label = {}
         self.model = None
+
+    def set_timeslice_dict(self, timeslice_dict):
+        self.timeslice_dict = timeslice_dict
 
     def set_data(self, train_data, train_labels,
                  validation_data, validation_labels):
@@ -124,3 +128,13 @@ class ClassificationContext:
         average_prediction_error = str(np.mean(prediction_errors))
         print("Average prediction error: " +
               average_prediction_error)
+
+    def get_accuracy(self, dataset=None):
+        if dataset:
+            self.model.evaluate(dataset)
+            return
+
+        print("Training data:\n")
+        self.model.evaluate(self.train_data)
+        print("Validation data:\n")
+        self.model.evaluate(self.validation_data)
