@@ -33,5 +33,8 @@ BATCH_SIZE = 32
 # Number of epochs with no improvement before training stops early
 TRAINING_PATIENCE = 15
 
-# Trained model filename
+# Model filename
 MODEL_FILE_NAME = '3d_attention_classification.h5'
+
+# Trained model weights filename
+MODEL_WEIGHTS_FILE_NAME = '3d_attention_classification_weights.h5'

@@ -8,6 +8,7 @@ from re import split as re_split
 from random import shuffle
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.models import save_model, load_model
 from tqdm import tqdm
 from keras.optimizers import SGD
 from classification_context import ClassificationContext
@@ -243,7 +244,7 @@ def define_data_loaders(train_data, train_labels, validation_data,
 
 
 def train_model(model, train_dataset, validation_dataset, max_epochs,
-                model_file_name):
+                model_file_name, model_weights_file_name):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     """
     initial_learning_rate = 0.0001
@@ -265,10 +266,11 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
     model.compile(loss="categorical_crossentropy",
                   optimizer=opt,
                   metrics=["acc"])
+    save_model(model, model_file_name)
 
     # Define callbacks
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        model_file_name, save_best_only=True)
+        model_weights_file_name, save_best_only=True)
 
     early_stopping_cb = keras.callbacks.EarlyStopping(
         monitor="val_acc",
@@ -284,6 +286,9 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
         callbacks=[checkpoint_cb, early_stopping_cb]
     )
 
+    # Load best weights
+    model.load_weights(model_weights_file_name)
+
 
 def do_classification(force_training=False,
                       max_epochs=settings.MAX_EPOCHS,
@@ -291,6 +296,7 @@ def do_classification(force_training=False,
                       frames_per_timeslice=settings.FRAMES_PER_TIMESLICE,
                       data_location=settings.DATA_LOCATION,
                       model_file_name=settings.MODEL_FILE_NAME,
+                      model_weights_file_name=settings.MODEL_WEIGHTS_FILE_NAME,
                       use_fourier=False,
                       fourier_append=False):
     context = ClassificationContext()
@@ -337,22 +343,26 @@ def do_classification(force_training=False,
                                                             batch_size)
     context.set_datasets(train_dataset, validation_dataset)
 
-    print("Building model...\n")
-
-    model = build_model(settings.TIMESLICE_COLUMNS,
-                        settings.TIMESLICE_ROWS,
-                        frames_per_timeslice,
-                        len(onehot_to_label.keys()))
-    model.summary()
-
-    if force_training or not path.exists(model_file_name):
+    model = None
+    if force_training or not (path.exists(model_file_name) and
+                              path.exists(model_weights_file_name)):
+        print("Building model...\n")
+        model = build_model(settings.TIMESLICE_COLUMNS,
+                            settings.TIMESLICE_ROWS,
+                            frames_per_timeslice,
+                            len(onehot_to_label.keys()))
+        model.summary()
         train_model(model, train_dataset, validation_dataset, max_epochs,
-                    model_file_name)
+                    model_file_name, model_weights_file_name)
         print("\nTraining complete.\n")
     else:
-        model.load_weights(model_file_name)
-        print("\nLoaded weights from existing model in {0}\n"
+        model = load_model(model_file_name)
+        print("\nLoaded model from {0}\n"
               .format(model_file_name))
+        model.summary()
+        model.load_weights(model_weights_file_name)
+        print("\nLoaded weights from {0}\n"
+              .format(model_weights_file_name))
 
     context.set_model(model)
 

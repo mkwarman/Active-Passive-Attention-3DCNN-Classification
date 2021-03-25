@@ -128,3 +128,13 @@ class ClassificationContext:
         average_prediction_error = str(np.mean(prediction_errors))
         print("Average prediction error: " +
               average_prediction_error)
+
+    def get_accuracy(self, dataset=None):
+        if dataset:
+            self.model.evaluate(dataset)
+            return
+
+        print("Training data:\n")
+        self.model.evaluate(self.train_data)
+        print("Validation data:\n")
+        self.model.evaluate(self.validation_data)
