@@ -10,6 +10,8 @@ EEG_BANDS = {'Delta': (0, 4),
              'Beta': (12, 30),
              'Gamma': (30, 45)}
 
+num_zeros = 0
+
 
 def sum_band_data(ft_data, ft_x):
     eeg_band_fft = {}
@@ -24,6 +26,11 @@ def sum_band_data(ft_data, ft_x):
 def normalize_band_distribution(eeg_band_data):
     normalized_eeg_band_data = {}
     aggregate_sum = sum(eeg_band_data.values())
+
+    if aggregate_sum == 0.0:
+        global num_zeros
+        num_zeros += 1
+        return eeg_band_data
 
     for key in eeg_band_data.keys():
         normalized_eeg_band_data[key] = eeg_band_data[key]/aggregate_sum

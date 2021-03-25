@@ -151,19 +151,23 @@ def get_fourier_data_for_frames(frames, eeg_bands):
     return fft_bands
 
 
-def load_fourier_data(timeslices):
-    keys = list(timeslices.keys())
+def load_fourier_data(timeslice_dict, append=False):
+    keys = list(timeslice_dict.keys())
 
     eeg_bands = range(len(fourier.get_bands().keys()))
     fft_data = {}
     for key in keys:
         fft_data[key] = []
-        for frames in timeslices[key]:
+        for frames in timeslice_dict[key]:
             fft_frames = get_fourier_data_for_frames(frames, eeg_bands)
-            #  fft_data[key].append(fft_frames)
-            frames_with_fft_frames = np.append(frames, fft_frames, 0)
-            fft_data[key].append(frames_with_fft_frames)
 
+            if append:
+                frames_with_fft_frames = np.append(frames, fft_frames, 0)
+                fft_data[key].append(frames_with_fft_frames)
+            else:
+                fft_data[key].append(fft_frames)
+
+    print("EEG band value sets of all 0s: " + str(fourier.num_zeros))
     return fft_data
 
 
@@ -278,9 +282,11 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
 def do_classification(force_training=False,
                       max_epochs=settings.MAX_EPOCHS,
                       batch_size=settings.BATCH_SIZE,
+                      frames_per_timeslice=settings.FRAMES_PER_TIMESLICE,
                       data_location=settings.DATA_LOCATION,
                       model_file_name=settings.MODEL_FILE_NAME,
-                      fourier=False):
+                      use_fourier=False,
+                      fourier_append=False):
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data(data_location)
@@ -289,9 +295,18 @@ def do_classification(force_training=False,
     print("Building timeslices...")
 
     timeslice_dict = build_timeslices(data,
-                                      settings.FRAMES_PER_TIMESLICE,
+                                      frames_per_timeslice,
                                       onehot_to_label)
+
+    if use_fourier:
+        print("\nComputing Fourier tranforms...")
+        timeslice_dict = load_fourier_data(timeslice_dict,
+                                           append=fourier_append)
+        frames_per_timeslice = (len(fourier.EEG_BANDS) + frames_per_timeslice
+                                if fourier_append else len(fourier.EEG_BANDS))
+
     context.set_timeslice_dict(timeslice_dict)
+
     ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
     shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
                                                             ordered_labels)
@@ -320,7 +335,7 @@ def do_classification(force_training=False,
 
     model = build_model(settings.TIMESLICE_COLUMNS,
                         settings.TIMESLICE_ROWS,
-                        settings.FRAMES_PER_TIMESLICE,
+                        frames_per_timeslice,
                         len(onehot_to_label.keys()))
     model.summary()
 

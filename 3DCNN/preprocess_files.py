@@ -1,6 +1,6 @@
 from os import listdir
 
-DATA_LOCATION = '_data'  # Folder containing data files
+DATA_LOCATION = '_data_passive'  # Folder containing data files
 
 # Remove header lines leaving only data
 filenames = listdir(DATA_LOCATION)

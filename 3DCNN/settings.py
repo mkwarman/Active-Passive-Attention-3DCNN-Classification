@@ -17,7 +17,7 @@ TIMESLICE_COLUMNS = 4
 KERNEL_SIZE = 3
 
 # Number of frames in a timeslice. Our data generates a timeslice every 0.0033s
-FRAMES_PER_TIMESLICE = 600
+FRAMES_PER_TIMESLICE = 20
 
 # Percent of data that should be used for training, with the remaining
 #   percentage used for validation
@@ -25,7 +25,7 @@ DATA_SPLIT_PERCENTAGE = 70
 
 # Max number of epochs. Training will stop early if no improvement after
 #   TRAINING_PATIENCE number of epochs
-MAX_EPOCHS = 100
+MAX_EPOCHS = 20
 
 # Batch size to use when training
 BATCH_SIZE = 32
