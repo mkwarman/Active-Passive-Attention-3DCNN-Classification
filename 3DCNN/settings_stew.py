@@ -4,6 +4,9 @@ DATA_LOCATION = '_data_stew'
 # Number of columns present in the CSV files that actually contain sensor data
 SENSOR_DATA_COLUMNS = 16
 
+# Number of sensor samples per second
+SENSOR_HERTZ = 128
+
 # Must be a factor of SENSOR_DATA_COLUMNS
 TIMESLICE_ROWS = 4
 

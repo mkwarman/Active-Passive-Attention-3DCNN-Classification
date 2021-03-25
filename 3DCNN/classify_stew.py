@@ -1,17 +1,7 @@
-"""
-This seems to work, but there is a ton of data and training is very slow
-It also seems to not have very good accuracy when training with a smaller
-amount of data (just subject 1). Maybe consider implementing
-interpolation:
-    https://stackoverflow.com/questions/33259896/python-interpolation-2d-array-for-huge-arrays
-then adjust the kernel size to something larger that will split the
-data evenly. It might not help much, but it will be good learning if
-nothing else.
-"""
-
 import pandas
 import tensorflow as tf
 import numpy as np
+import fourier
 import settings_stew as settings
 from os import listdir, path
 from re import split as re_split
@@ -63,9 +53,9 @@ def get_onehots(values):
     return label_to_onehot, onehot_to_label
 
 
-def get_input_data():
+def get_input_data(data_location):
     data = []
-    filenames = listdir(settings.DATA_LOCATION)
+    filenames = listdir(data_location)
 
     # Get rid of things like .DS_Store
     filenames = list(filter(lambda f: not f.startswith("."), filenames))
@@ -77,7 +67,7 @@ def get_input_data():
     for filename in tqdm(filenames):
         # Use delim_whitespace=True to load from whitespace seperated .txt
         #   files
-        file_location = settings.DATA_LOCATION + '/' + filename
+        file_location = data_location + '/' + filename
         filedata = pandas.read_csv(file_location, delim_whitespace=True,
                                    index_col=None, header=None)
         file_label = filename_label_dict[filename]
@@ -143,6 +133,41 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
     # END Informational only
 
     return timeslice_dict
+
+
+def get_fourier_data_for_frames(frames, eeg_bands):
+    # Create stack of planes for each eeg band with values corresponding to
+    #   each sensor
+    fft_bands = np.zeros((len(eeg_bands), settings.TIMESLICE_COLUMNS,
+                          settings.TIMESLICE_ROWS))
+    for i in range(settings.TIMESLICE_COLUMNS):
+        for j in range(settings.TIMESLICE_ROWS):
+            band_data = list(fourier.partition_eeg_bands(
+                frames[:, i, j], settings.SENSOR_HERTZ).values())
+            for band in eeg_bands:
+                fft_bands[band, i, j] = band_data[band]
+
+    return fft_bands
+
+
+def load_fourier_data(timeslice_dict, append=False):
+    keys = list(timeslice_dict.keys())
+
+    eeg_bands = range(len(fourier.get_bands().keys()))
+    fft_data = {}
+    for key in keys:
+        fft_data[key] = []
+        for frames in timeslice_dict[key]:
+            fft_frames = get_fourier_data_for_frames(frames, eeg_bands)
+
+            if append:
+                frames_with_fft_frames = np.append(frames, fft_frames, 0)
+                fft_data[key].append(frames_with_fft_frames)
+            else:
+                fft_data[key].append(fft_frames)
+
+    print("EEG band value sets of all 0s: " + str(fourier.num_zeros))
+    return fft_data
 
 
 def get_ordered_data(timeslices):
@@ -217,7 +242,8 @@ def define_data_loaders(train_data, train_labels, validation_data,
     return train_dataset, validation_dataset
 
 
-def train_model(model, train_dataset, validation_dataset, max_epochs):
+def train_model(model, train_dataset, validation_dataset, max_epochs,
+                model_file_name):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     """
     initial_learning_rate = 0.0001
@@ -242,7 +268,7 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
 
     # Define callbacks
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        settings.MODEL_FILE_NAME, save_best_only=True)
+        model_file_name, save_best_only=True)
 
     early_stopping_cb = keras.callbacks.EarlyStopping(
         monitor="val_acc",
@@ -259,18 +285,34 @@ def train_model(model, train_dataset, validation_dataset, max_epochs):
     )
 
 
-def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
-                      batch_size=settings.BATCH_SIZE):
+def do_classification(force_training=False,
+                      max_epochs=settings.MAX_EPOCHS,
+                      batch_size=settings.BATCH_SIZE,
+                      frames_per_timeslice=settings.FRAMES_PER_TIMESLICE,
+                      data_location=settings.DATA_LOCATION,
+                      model_file_name=settings.MODEL_FILE_NAME,
+                      use_fourier=False,
+                      fourier_append=False):
     context = ClassificationContext()
 
-    data, label_to_onehot, onehot_to_label = get_input_data()
+    data, label_to_onehot, onehot_to_label = get_input_data(data_location)
     context.set_label_onehot(label_to_onehot, onehot_to_label)
 
     print("Building timeslices...")
 
     timeslice_dict = build_timeslices(data,
-                                      settings.FRAMES_PER_TIMESLICE,
+                                      frames_per_timeslice,
                                       onehot_to_label)
+
+    if use_fourier:
+        print("\nComputing Fourier tranforms...")
+        timeslice_dict = load_fourier_data(timeslice_dict,
+                                           append=fourier_append)
+        frames_per_timeslice = (len(fourier.EEG_BANDS) + frames_per_timeslice
+                                if fourier_append else len(fourier.EEG_BANDS))
+
+    context.set_timeslice_dict(timeslice_dict)
+
     ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
     shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
                                                             ordered_labels)
@@ -299,17 +341,18 @@ def do_classification(force_training=False, max_epochs=settings.MAX_EPOCHS,
 
     model = build_model(settings.TIMESLICE_COLUMNS,
                         settings.TIMESLICE_ROWS,
-                        settings.FRAMES_PER_TIMESLICE,
+                        frames_per_timeslice,
                         len(onehot_to_label.keys()))
     model.summary()
 
-    if force_training or not path.exists(settings.MODEL_FILE_NAME):
-        train_model(model, train_dataset, validation_dataset, max_epochs)
+    if force_training or not path.exists(model_file_name):
+        train_model(model, train_dataset, validation_dataset, max_epochs,
+                    model_file_name)
         print("\nTraining complete.\n")
     else:
-        model.load_weights(settings.MODEL_FILE_NAME)
+        model.load_weights(model_file_name)
         print("\nLoaded weights from existing model in {0}\n"
-              .format(settings.MODEL_FILE_NAME))
+              .format(model_file_name))
 
     context.set_model(model)
 

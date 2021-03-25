@@ -354,11 +354,4 @@ def do_classification(force_training=False,
 
 
 if (__name__ == '__main__'):
-    global context
-    context = do_classification(force_training=False,
-                                data_location='_data_active',
-                                max_epochs=10)
-    key = list(context.timeslice_dict.keys())[0]
-    frame = context.timeslice_dict[key][0]
-    series = frame[:, 0, 0]
-    fourier.partition_eeg_bands(series, settings.SENSOR_HERTZ, plot=True)
+    do_classification()
