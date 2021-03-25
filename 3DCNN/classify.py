@@ -245,7 +245,7 @@ def define_data_loaders(train_data, train_labels, validation_data,
 
 
 def train_model(model, train_dataset, validation_dataset, max_epochs,
-                model_file_name, model_weights_file_name):
+                model_file_name, model_weights_file_name, early_stopping):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
     initial_learning_rate = 0.0001
     lr_schedule = keras.optimizers.schedules.ExponentialDecay(
@@ -266,18 +266,22 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
         model_weights_file_name, save_best_only=True)
 
-    early_stopping_cb = keras.callbacks.EarlyStopping(
-        monitor="val_acc",
-        # monitor="val_categorical_crossentropy",
-        patience=settings.TRAINING_PATIENCE)
+    callbacks = [checkpoint_cb]
+
+    if early_stopping:
+        early_stopping_cb = keras.callbacks.EarlyStopping(
+            monitor="val_acc",
+            # monitor="val_categorical_crossentropy",
+            patience=settings.TRAINING_PATIENCE)
+        callbacks.append(early_stopping_cb)
 
     # Train the model, doing validation after each epoch
     model.fit(
         train_dataset,
         validation_data=validation_dataset,
         epochs=max_epochs,
-        # shuffle = True, # Omitting since I already shuffled the data
-        callbacks=[checkpoint_cb, early_stopping_cb]
+        # shuffle = True,  # Omitting since I already shuffled the data
+        callbacks=callbacks
     )
 
     # Load best weights
@@ -292,7 +296,8 @@ def do_classification(force_training=False,
                       model_file_name=settings.MODEL_FILE_NAME,
                       model_weights_file_name=settings.MODEL_WEIGHTS_FILE_NAME,
                       use_fourier=False,
-                      fourier_append=False):
+                      fourier_append=False,
+                      early_stopping=True):
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data(data_location)
@@ -347,7 +352,7 @@ def do_classification(force_training=False,
                             len(onehot_to_label.keys()))
         model.summary()
         train_model(model, train_dataset, validation_dataset, max_epochs,
-                    model_file_name, model_weights_file_name)
+                    model_file_name, model_weights_file_name, early_stopping)
         print("\nTraining complete.\n")
     else:
         model = load_model(model_file_name)
