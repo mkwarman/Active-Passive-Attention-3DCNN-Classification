@@ -134,7 +134,7 @@ class ClassificationContext:
             self.model.evaluate(dataset)
             return
 
-        print("Training data:\n")
-        self.model.evaluate(self.train_data)
-        print("Validation data:\n")
-        self.model.evaluate(self.validation_data)
+        print("Training data:")
+        self.model.evaluate(self.train_dataset)
+        print("\nValidation data:")
+        self.model.evaluate(self.validation_dataset)
