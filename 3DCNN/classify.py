@@ -53,7 +53,7 @@ def get_onehots(values):
     return label_to_onehot, onehot_to_label
 
 
-def get_input_data(data_location):
+def get_input_data(data_location, drop_columns):
     data = []
     filenames = listdir(data_location)
 
@@ -68,13 +68,7 @@ def get_input_data(data_location):
         filedata = pandas.read_csv(data_location + '/' + filename)
         file_label = filename_label_dict[filename]
 
-        filedata.drop(columns=['Trigger',
-                               'Time_Offset',
-                               'ADC_Status',
-                               'ADC_Sequence',
-                               'Event',
-                               'Comments'],
-                      inplace=True)
+        filedata.drop(columns=drop_columns, inplace=True)
         filedata['label'] = file_label
 
         # Assigning tuple to column value
@@ -92,7 +86,8 @@ def get_input_data(data_location):
 #   then group those frames into timeslices organized by label.
 # The remainder of (number of rows for label) / frames_per_timeslice
 #   is discarded with this implementation.
-def build_timeslices(data, frames_per_timeslice, onehot_to_label):
+def build_timeslices(data, frames_per_timeslice, onehot_to_label,
+                     num_columns, num_rows):
     timeslice_dict = {}
     partial_sets = {}
 
@@ -102,11 +97,9 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
         partial_sets[label] = []
 
     for row in data.values:
-        # Add one to SENSOR_DATA_COLUMS to account for time column
-        #   which we are skipping.
-        # Cast to float32 to fit model
-        frame = row[1:settings.SENSOR_DATA_COLUMNS + 1].astype('float32') \
-                .reshape((settings.TIMESLICE_COLUMNS, settings.TIMESLICE_ROWS))
+        # Cast to float32 to fit model and reshape, excluding label columns
+        frame = (row[:len(row) - 2].astype('float32')
+                 .reshape((num_columns, num_rows)))
 
         # The last column in the row is the onehot label
         frame_label = row[len(row) - 1]
@@ -137,13 +130,12 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label):
     return timeslice_dict
 
 
-def get_fourier_data_for_frames(frames, eeg_bands):
+def get_fourier_data_for_frames(frames, eeg_bands, num_columns, num_rows):
     # Create stack of planes for each eeg band with values corresponding to
     #   each sensor
-    fft_bands = np.zeros((len(eeg_bands), settings.TIMESLICE_COLUMNS,
-                          settings.TIMESLICE_ROWS))
-    for i in range(settings.TIMESLICE_COLUMNS):
-        for j in range(settings.TIMESLICE_ROWS):
+    fft_bands = np.zeros((len(eeg_bands), num_columns, num_rows))
+    for i in range(num_columns):
+        for j in range(num_rows):
             band_data = list(fourier.partition_eeg_bands(
                 frames[:, i, j], settings.SENSOR_HERTZ).values())
             for band in eeg_bands:
@@ -152,7 +144,7 @@ def get_fourier_data_for_frames(frames, eeg_bands):
     return fft_bands
 
 
-def load_fourier_data(timeslice_dict, append=False):
+def load_fourier_data(timeslice_dict, num_columns, num_rows, append=False):
     keys = list(timeslice_dict.keys())
 
     eeg_bands = range(len(fourier.get_bands().keys()))
@@ -160,7 +152,8 @@ def load_fourier_data(timeslice_dict, append=False):
     for key in keys:
         fft_data[key] = []
         for frames in timeslice_dict[key]:
-            fft_frames = get_fourier_data_for_frames(frames, eeg_bands)
+            fft_frames = get_fourier_data_for_frames(frames, eeg_bands,
+                                                     num_columns, num_rows)
 
             if append:
                 frames_with_fft_frames = np.append(frames, fft_frames, 0)
@@ -198,12 +191,23 @@ def split_data(data, data_split_percentage):
 
 def build_model(columns, rows, depth, output_units):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
+    pool_size = 2
+    kernel_size = settings.KERNEL_SIZE
+
+    # Handle small dimensions
+    if (columns < 2 or rows < 2):
+        pool_size = 1
+        kernel_size = 1
+
+    # Handle odd dimension lengths
+    if ((columns % 2 != 0) or (rows % 2 != 0)):
+        kernel_size = 1
 
     inputs = keras.Input((depth, columns, rows, 1))
     x = layers.Conv3D(filters=64,
-                      kernel_size=settings.KERNEL_SIZE,
+                      kernel_size=kernel_size,
                       activation="relu")(inputs)
-    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.MaxPool3D(pool_size=pool_size)(x)
     x = layers.BatchNormalization()(x)
 
     x = layers.GlobalAveragePooling3D()(x)
@@ -297,22 +301,27 @@ def do_classification(force_training=False,
                       model_weights_file_name=settings.MODEL_WEIGHTS_FILE_NAME,
                       use_fourier=False,
                       fourier_append=False,
-                      early_stopping=True):
+                      override_fourier_eeg_bands=None,
+                      early_stopping=True,
+                      num_columns=settings.TIMESLICE_COLUMNS,
+                      num_rows=settings.TIMESLICE_ROWS,
+                      drop_columns=settings.DROP_COLUMNS):
     context = ClassificationContext()
 
-    data, label_to_onehot, onehot_to_label = get_input_data(data_location)
+    data, label_to_onehot, onehot_to_label = get_input_data(data_location,
+                                                            drop_columns)
     context.set_label_onehot(label_to_onehot, onehot_to_label)
 
     print("Building timeslices...")
 
-    timeslice_dict = build_timeslices(data,
-                                      frames_per_timeslice,
-                                      onehot_to_label)
+    timeslice_dict = build_timeslices(data, frames_per_timeslice,
+                                      onehot_to_label, num_columns,
+                                      num_rows)
 
     if use_fourier:
         print("\nComputing Fourier tranforms...")
-        timeslice_dict = load_fourier_data(timeslice_dict,
-                                           append=fourier_append)
+        timeslice_dict = load_fourier_data(timeslice_dict, num_columns,
+                                           num_rows, append=fourier_append)
         frames_per_timeslice = (len(fourier.EEG_BANDS) + frames_per_timeslice
                                 if fourier_append else len(fourier.EEG_BANDS))
 
@@ -346,8 +355,8 @@ def do_classification(force_training=False,
     if force_training or not (path.exists(model_file_name) and
                               path.exists(model_weights_file_name)):
         print("Building model...\n")
-        model = build_model(settings.TIMESLICE_COLUMNS,
-                            settings.TIMESLICE_ROWS,
+        model = build_model(num_columns,
+                            num_rows,
                             frames_per_timeslice,
                             len(onehot_to_label.keys()))
         model.summary()

@@ -4,6 +4,10 @@ DATA_LOCATION = '_data'
 # Number of columns present in the CSV files that actually contain sensor data
 SENSOR_DATA_COLUMNS = 24
 
+# Named CSV columns to drop
+DROP_COLUMNS = ['Time', 'Trigger', 'Time_Offset', 'ADC_Status', 'ADC_Sequence',
+                'Event', 'Comments']
+
 # Number of sensor samples per second
 SENSOR_HERTZ = 300
 

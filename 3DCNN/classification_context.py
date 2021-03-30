@@ -121,6 +121,7 @@ class ClassificationContext:
         prediction_errors = []
         print("Calculating average prediction error:")
         label_indices = trange(len(self.validation_labels))
+
         for index in label_indices:
             prediction_errors.extend(
                 self.get_prediction_errors_for_index(index))
@@ -129,12 +130,21 @@ class ClassificationContext:
         print("Average prediction error: " +
               average_prediction_error)
 
-    def get_accuracy(self, dataset=None):
+        return float(average_prediction_error)
+
+    def get_accuracy(self, dataset=None, verbose=True):
         if dataset:
             self.model.evaluate(dataset)
             return
 
-        print("Training data:")
-        self.model.evaluate(self.train_dataset)
-        print("\nValidation data:")
-        self.model.evaluate(self.validation_dataset)
+        if verbose:
+            print("Training data:")
+        train = self.model.evaluate(self.train_dataset,
+                                    use_multiprocessing=True,
+                                    verbose=(1 if verbose else 0))[1]
+        if verbose:
+            print("\nValidation data:")
+        validation = self.model.evaluate(self.validation_dataset,
+                                         use_multiprocessing=True,
+                                         verbose=(1 if verbose else 0))[1]
+        return train, validation
