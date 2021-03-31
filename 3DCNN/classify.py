@@ -137,17 +137,18 @@ def get_fourier_data_for_frames(frames, eeg_bands, num_columns, num_rows):
     for i in range(num_columns):
         for j in range(num_rows):
             band_data = list(fourier.partition_eeg_bands(
-                frames[:, i, j], settings.SENSOR_HERTZ).values())
-            for band in eeg_bands:
+                frames[:, i, j], settings.SENSOR_HERTZ,
+                eeg_bands=eeg_bands).values())
+            for band in range(len(fft_bands)):
                 fft_bands[band, i, j] = band_data[band]
 
     return fft_bands
 
 
-def load_fourier_data(timeslice_dict, num_columns, num_rows, append=False):
+def load_fourier_data(timeslice_dict, num_columns, num_rows, eeg_bands,
+                      append=False):
     keys = list(timeslice_dict.keys())
 
-    eeg_bands = range(len(fourier.get_bands().keys()))
     fft_data = {}
     for key in keys:
         fft_data[key] = []
@@ -161,7 +162,6 @@ def load_fourier_data(timeslice_dict, num_columns, num_rows, append=False):
             else:
                 fft_data[key].append(fft_frames)
 
-    print("EEG band value sets of all 0s: " + str(fourier.num_zeros))
     return fft_data
 
 
@@ -301,7 +301,7 @@ def do_classification(force_training=False,
                       model_weights_file_name=settings.MODEL_WEIGHTS_FILE_NAME,
                       use_fourier=False,
                       fourier_append=False,
-                      override_fourier_eeg_bands=None,
+                      fourier_eeg_bands=fourier.DEFAULT_EEG_BANDS,
                       early_stopping=True,
                       num_columns=settings.TIMESLICE_COLUMNS,
                       num_rows=settings.TIMESLICE_ROWS,
@@ -321,9 +321,10 @@ def do_classification(force_training=False,
     if use_fourier:
         print("\nComputing Fourier tranforms...")
         timeslice_dict = load_fourier_data(timeslice_dict, num_columns,
-                                           num_rows, append=fourier_append)
-        frames_per_timeslice = (len(fourier.EEG_BANDS) + frames_per_timeslice
-                                if fourier_append else len(fourier.EEG_BANDS))
+                                           num_rows, fourier_eeg_bands,
+                                           append=fourier_append)
+        frames_per_timeslice = (len(fourier_eeg_bands) + frames_per_timeslice
+                                if fourier_append else len(fourier_eeg_bands))
 
     context.set_timeslice_dict(timeslice_dict)
 

@@ -4,20 +4,18 @@ import pandas as pd
 import numpy as np
 
 
-EEG_BANDS = {'Delta': (0, 4),
-             'Theta': (4, 8),
-             'Alpha': (8, 12),
-             'Beta': (12, 30),
-             'Gamma': (30, 45)}
-
-num_zeros = 0
+DEFAULT_EEG_BANDS = {'Delta': (0, 4),
+                     'Theta': (4, 8),
+                     'Alpha': (8, 12),
+                     'Beta': (12, 30),
+                     'Gamma': (30, 45)}
 
 
-def sum_band_data(ft_data, ft_x):
+def sum_band_data(eeg_bands, ft_data, ft_x):
     eeg_band_fft = {}
-    for band in EEG_BANDS:
-        frequency_index = np.where((ft_x >= EEG_BANDS[band][0]) &
-                                   (ft_x <= EEG_BANDS[band][1]))[0]
+    for band in eeg_bands:
+        frequency_index = np.where((ft_x >= eeg_bands[band][0]) &
+                                   (ft_x <= eeg_bands[band][1]))[0]
         eeg_band_fft[band] = np.sum(np.abs(ft_data[frequency_index]))
 
     return eeg_band_fft
@@ -28,8 +26,6 @@ def normalize_band_distribution(eeg_band_data):
     aggregate_sum = sum(eeg_band_data.values())
 
     if aggregate_sum == 0.0:
-        global num_zeros
-        num_zeros += 1
         return eeg_band_data
 
     for key in eeg_band_data.keys():
@@ -38,7 +34,8 @@ def normalize_band_distribution(eeg_band_data):
     return normalized_eeg_band_data
 
 
-def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
+def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False,
+                        eeg_bands=DEFAULT_EEG_BANDS):
     num_samples = len(data)
     hertz = 1 / sample_rate
 
@@ -61,12 +58,12 @@ def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
         plt.plot(ft_x,
                  2.0/num_samples * np.abs(ft_data[0:num_samples//2]))
 
-    eeg_band_fft = sum_band_data(ft_data, ft_x)
+    eeg_band_fft = sum_band_data(eeg_bands, ft_data, ft_x)
 
     if plot:
         df = pd.DataFrame(columns=['band', 'value'])
-        df['band'] = EEG_BANDS.keys()
-        df['value'] = [eeg_band_fft[band] for band in EEG_BANDS]
+        df['band'] = eeg_bands.keys()
+        df['value'] = [eeg_band_fft[band] for band in eeg_bands]
 
         df.plot.bar(x='band', y='value', legend=False,
                     title='EEG wave distribution')
@@ -79,18 +76,14 @@ def partition_eeg_bands(data, sample_rate, plot=False, unnormalized=False):
 
     if plot:
         df = pd.DataFrame(columns=['band', 'percent'])
-        df['band'] = EEG_BANDS.keys()
-        df['percent'] = [normalized_eeg_band_fft[band] for band in EEG_BANDS]
+        df['band'] = eeg_bands.keys()
+        df['percent'] = [normalized_eeg_band_fft[band] for band in eeg_bands]
 
         df.plot.bar(x='band', y='percent', legend=False,
                     title='EEG wave distribution percentage')
         plt.show(block=True)
 
     return normalized_eeg_band_fft
-
-
-def get_bands():
-    return EEG_BANDS
 
 
 def test_data(filepath='_data/subject1-eyesclosed.csv',
