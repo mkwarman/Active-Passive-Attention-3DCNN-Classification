@@ -97,6 +97,17 @@ def build_timeslices(data, frames_per_timeslice, onehot_to_label,
         partial_sets[label] = []
 
     for row in data.values:
+        """
+        temp = row[:len(row) - 2]
+        target_len = num_columns * num_rows
+        if (len(temp) < target_len):
+            zeros_to_add = target_len - len(temp)
+            zeros = list((0,) * zeros_to_add)
+            temp = np.concatenate((temp, zeros))
+
+        frame = (temp.astype('float32')
+                 .reshape((num_columns, num_rows)))
+        """
         # Cast to float32 to fit model and reshape, excluding label columns
         frame = (row[:len(row) - 2].astype('float32')
                  .reshape((num_columns, num_rows)))
@@ -195,7 +206,7 @@ def build_model(columns, rows, depth, output_units):
     kernel_size = settings.KERNEL_SIZE
 
     # Handle small dimensions
-    if (columns < 2 or rows < 2):
+    if (columns <= 2 or rows <= 2):
         pool_size = 1
         kernel_size = 1
 
@@ -306,6 +317,14 @@ def do_classification(force_training=False,
                       num_columns=settings.TIMESLICE_COLUMNS,
                       num_rows=settings.TIMESLICE_ROWS,
                       drop_columns=settings.DROP_COLUMNS):
+    """
+    # Force square
+    if num_columns != num_rows:
+        num = max([num_columns, num_rows])
+        num_columns = num
+        num_rows = num
+    """
+
     context = ClassificationContext()
 
     data, label_to_onehot, onehot_to_label = get_input_data(data_location,
