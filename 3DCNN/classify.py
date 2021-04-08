@@ -66,6 +66,10 @@ def get_input_data(data_location, drop_columns):
     print("Loading input data files:")
     for filename in tqdm(filenames):
         filedata = pandas.read_csv(data_location + '/' + filename)
+
+        # Remove whitespace from column names
+        filedata = filedata.rename(columns=lambda col: col.strip())
+
         file_label = filename_label_dict[filename]
 
         filedata.drop(columns=drop_columns, inplace=True)
