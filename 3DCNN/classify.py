@@ -9,10 +9,13 @@ from random import shuffle
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import save_model, load_model
+from tftb.processing.cohen import WignerVilleDistribution
 from tqdm import tqdm
 from classification_context import ClassificationContext
 
 FILENAME_REGEX = '-|\\.'  # Splits files by dash and period
+TRANSFORM_FOURIER = 'fourier'
+TRANSFORM_WVD = 'wvd'
 
 
 def get_filename_label_dict(filenames):
@@ -160,24 +163,45 @@ def get_fourier_data_for_frames(frames, eeg_bands, num_columns, num_rows):
     return fft_bands
 
 
-def load_fourier_data(timeslice_dict, num_columns, num_rows, eeg_bands,
-                      append=False):
+def get_wvd_data_for_frames(frames, num_columns, num_rows):
+    # Create stack of planes for WVD with values corresponding to each
+    #   sensor
+    len_frames = len(frames)
+    wvd_planes = np.zeros((num_columns*num_rows, len_frames, len_frames))
+    count = 0
+    for i in range(num_columns):
+        for j in range(num_rows):
+            # Compute Wigner Ville Distribution along frame aisle (z axis)
+            wvd_data, _, _ = WignerVilleDistribution(frames[:, i, j]).run()
+            wvd_planes[count, :, :] = wvd_data
+
+    return wvd_planes
+
+
+def load_transform_data(timeslice_dict, num_columns, num_rows, transform,
+                        eeg_bands, append=False):
     keys = list(timeslice_dict.keys())
 
-    fft_data = {}
+    transformed_data = {}
     for key in keys:
-        fft_data[key] = []
+        transformed_data[key] = []
         for frames in timeslice_dict[key]:
-            fft_frames = get_fourier_data_for_frames(frames, eeg_bands,
-                                                     num_columns, num_rows)
+            transformed_frames = []
+            if transform == TRANSFORM_FOURIER:
+                transformed_frames = get_fourier_data_for_frames(
+                    frames, eeg_bands, num_columns, num_rows)
+            if transform == TRANSFORM_WVD:
+                transformed_frames = get_wvd_data_for_frames(
+                    frames, num_columns, num_rows)
 
-            if append:
-                frames_with_fft_frames = np.append(frames, fft_frames, 0)
-                fft_data[key].append(frames_with_fft_frames)
+            if append and transform == TRANSFORM_FOURIER:
+                frames_with_transformed_frames = np.append(
+                    frames, transformed_frames, 0)
+                transformed_data[key].append(frames_with_transformed_frames)
             else:
-                fft_data[key].append(fft_frames)
+                transformed_data[key].append(transformed_frames)
 
-    return fft_data
+    return transformed_data
 
 
 def get_ordered_data(timeslices):
@@ -202,37 +226,6 @@ def shuffle_together(list1, list2):
 def split_data(data, data_split_percentage):
     split_index = round(len(data) * (data_split_percentage / 100))
     return data[:split_index], data[split_index:]
-
-
-def build_model(columns, rows, depth, output_units):
-    # Based on: https://keras.io/examples/vision/3D_image_classification/
-    pool_size = 2
-    kernel_size = settings.KERNEL_SIZE
-
-    # Handle small dimensions
-    if (columns <= 2 or rows <= 2):
-        pool_size = 1
-        kernel_size = 1
-
-    # Handle odd dimension lengths
-    if ((columns % 2 != 0) or (rows % 2 != 0)):
-        kernel_size = 1
-
-    inputs = keras.Input((depth, columns, rows, 1))
-    x = layers.Conv3D(filters=64,
-                      kernel_size=kernel_size,
-                      activation="relu")(inputs)
-    x = layers.MaxPool3D(pool_size=pool_size)(x)
-    x = layers.BatchNormalization()(x)
-
-    x = layers.GlobalAveragePooling3D()(x)
-    x = layers.Dense(units=512, activation="relu")(x)
-    x = layers.Dropout(0.3)(x)
-
-    outputs = layers.Dense(units=output_units, activation="sigmoid")(x)
-
-    model = keras.Model(inputs, outputs, name="3DCNN")
-    return model
 
 
 def define_data_loaders(train_data, train_labels, validation_data,
@@ -263,6 +256,36 @@ def define_data_loaders(train_data, train_labels, validation_data,
     return train_dataset, validation_dataset
 
 
+def build_model(columns, rows, depth, output_units, kernel_size):
+    # Based on: https://keras.io/examples/vision/3D_image_classification/
+    pool_size = 2
+
+    # Handle small dimensions
+    if (columns <= 2 or rows <= 2):
+        pool_size = 1
+        kernel_size = 1
+
+    # Handle odd dimension lengths
+    if ((columns % 2 != 0) or (rows % 2 != 0)):
+        kernel_size = 1
+
+    inputs = keras.Input((depth, columns, rows, 1))
+    x = layers.Conv3D(filters=64,
+                      kernel_size=kernel_size,
+                      activation="relu")(inputs)
+    x = layers.MaxPool3D(pool_size=pool_size)(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.GlobalAveragePooling3D()(x)
+    x = layers.Dense(units=512, activation="relu")(x)
+    x = layers.Dropout(0.3)(x)
+
+    outputs = layers.Dense(units=output_units, activation="sigmoid")(x)
+
+    model = keras.Model(inputs, outputs, name="3DCNN")
+    return model
+
+
 def train_model(model, train_dataset, validation_dataset, max_epochs,
                 model_file_name, model_weights_file_name, early_stopping):
     # Based on: https://keras.io/examples/vision/3D_image_classification/
@@ -282,10 +305,15 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
     save_model(model, model_file_name)
 
     # Define callbacks
-    checkpoint_cb = keras.callbacks.ModelCheckpoint(
-        model_weights_file_name, save_best_only=True)
+    checkpoint_cb = \
+        keras.callbacks.ModelCheckpoint(model_weights_file_name,
+                                        save_best_only=True)
+    log_location = settings.LOG_LOCATION + '/' + model_file_name.split('.')[0]
+    tensorboard_cb = \
+        tf.keras.callbacks.TensorBoard(log_dir=log_location,
+                                       histogram_freq=1)
 
-    callbacks = [checkpoint_cb]
+    callbacks = [checkpoint_cb, tensorboard_cb]
 
     if early_stopping:
         early_stopping_cb = keras.callbacks.EarlyStopping(
@@ -314,89 +342,114 @@ def do_classification(force_training=False,
                       data_location=settings.DATA_LOCATION,
                       model_file_name=settings.MODEL_FILE_NAME,
                       model_weights_file_name=settings.MODEL_WEIGHTS_FILE_NAME,
-                      use_fourier=False,
-                      fourier_append=False,
+                      transform=None,
+                      transform_append=False,
                       fourier_eeg_bands=fourier.DEFAULT_EEG_BANDS,
                       early_stopping=True,
                       num_columns=settings.TIMESLICE_COLUMNS,
                       num_rows=settings.TIMESLICE_ROWS,
-                      drop_columns=settings.DROP_COLUMNS):
-    """
-    # Force square
-    if num_columns != num_rows:
-        num = max([num_columns, num_rows])
-        num_columns = num
-        num_rows = num
-    """
+                      drop_columns=settings.DROP_COLUMNS,
+                      kernel_size=settings.KERNEL_SIZE):
+    # Validate input
+    if transform == TRANSFORM_WVD and transform_append:
+        print("Transform append not supported with WVD")
+        exit()
 
     context = ClassificationContext()
 
-    data, label_to_onehot, onehot_to_label = get_input_data(data_location,
-                                                            drop_columns)
-    context.set_label_onehot(label_to_onehot, onehot_to_label)
+    try:
+        data, label_to_onehot, onehot_to_label = get_input_data(data_location,
+                                                                drop_columns)
+        context.set_label_onehot(label_to_onehot, onehot_to_label)
 
-    print("Building timeslices...")
+        print("Building timeslices...")
 
-    timeslice_dict = build_timeslices(data, frames_per_timeslice,
-                                      onehot_to_label, num_columns,
-                                      num_rows)
+        timeslice_dict = build_timeslices(data, frames_per_timeslice,
+                                        onehot_to_label, num_columns,
+                                        num_rows)
 
-    if use_fourier:
-        print("\nComputing Fourier tranforms...")
-        timeslice_dict = load_fourier_data(timeslice_dict, num_columns,
-                                           num_rows, fourier_eeg_bands,
-                                           append=fourier_append)
-        frames_per_timeslice = (len(fourier_eeg_bands) + frames_per_timeslice
-                                if fourier_append else len(fourier_eeg_bands))
+        if transform is not None:
+            print("\nComputing tranforms...")
+            timeslice_dict = load_transform_data(timeslice_dict, num_columns,
+                                                num_rows, transform,
+                                                fourier_eeg_bands,
+                                                append=transform_append)
 
-    context.set_timeslice_dict(timeslice_dict)
+            # Update dimensions to match the transformed timeslice dimensions
+            frames_per_timeslice, num_columns, num_rows = \
+                list(timeslice_dict.values())[0][0].shape
+            print("frames per timeslice: " + str(frames_per_timeslice))
+            print("columns: " + str(num_columns))
+            print("rows: " + str(num_rows))
 
-    ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
-    shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
-                                                            ordered_labels)
-    train_labels, validation_labels = \
-        split_data(shuffled_labels, settings.DATA_SPLIT_PERCENTAGE)
-    train_data, validation_data = \
-        split_data(shuffled_timeslices, settings.DATA_SPLIT_PERCENTAGE)
-    context.set_data(train_data, train_labels,
-                     validation_data, validation_labels)
+        context.set_timeslice_dict(timeslice_dict)
 
-    print("\nThe number of training samples is {0}"
-          .format(len(train_labels)))
-    print("The number of validation samples is {0}\n"
-          .format(len(validation_labels)))
+        ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
+        shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
+                                                                ordered_labels)
+        train_labels, validation_labels = \
+            split_data(shuffled_labels, settings.DATA_SPLIT_PERCENTAGE)
+        train_data, validation_data = \
+            split_data(shuffled_timeslices, settings.DATA_SPLIT_PERCENTAGE)
+        context.set_data(train_data, train_labels,
+                        validation_data, validation_labels)
 
-    print("Building datasets...\n")
+        print("\nThe number of training samples is {0}"
+            .format(len(train_labels)))
+        print("The number of validation samples is {0}\n"
+            .format(len(validation_labels)))
 
-    train_dataset, validation_dataset = define_data_loaders(train_data,
-                                                            train_labels,
-                                                            validation_data,
-                                                            validation_labels,
-                                                            batch_size)
-    context.set_datasets(train_dataset, validation_dataset)
+        print("Building datasets...\n")
 
-    model = None
-    if force_training or not (path.exists(model_file_name) and
-                              path.exists(model_weights_file_name)):
-        print("Building model...\n")
-        model = build_model(num_columns,
-                            num_rows,
-                            frames_per_timeslice,
-                            len(onehot_to_label.keys()))
-        model.summary()
-        train_model(model, train_dataset, validation_dataset, max_epochs,
-                    model_file_name, model_weights_file_name, early_stopping)
-        print("\nTraining complete.\n")
-    else:
-        model = load_model(model_file_name)
-        print("\nLoaded model from {0}\n"
-              .format(model_file_name))
-        model.summary()
-        model.load_weights(model_weights_file_name)
-        print("\nLoaded weights from {0}\n"
-              .format(model_weights_file_name))
+        train_dataset, validation_dataset = define_data_loaders(train_data,
+                                                                train_labels,
+                                                                validation_data,
+                                                                validation_labels,
+                                                                batch_size)
+        context.set_datasets(train_dataset, validation_dataset)
 
-    context.set_model(model)
+        model = None
+        if force_training or not (path.exists(model_file_name) and
+                                path.exists(model_weights_file_name)):
+            print("Building model...\n")
+            model = build_model(num_columns,
+                                num_rows,
+                                frames_per_timeslice,
+                                len(onehot_to_label.keys()),
+                                kernel_size)
+            model.summary()
+            train_model(model, train_dataset, validation_dataset, max_epochs,
+                        model_file_name, model_weights_file_name, early_stopping)
+            print("\nTraining complete.\n")
+        else:
+            model = load_model(model_file_name)
+            print("\nLoaded model from {0}\n"
+                .format(model_file_name))
+            model.summary()
+            model.load_weights(model_weights_file_name)
+            print("\nLoaded weights from {0}\n"
+                .format(model_weights_file_name))
+
+        context.set_model(model)
+
+    except Exception as e:
+        print("Blew up with these parameters: ")
+        print("force_training: " + str(force_training))
+        print("max_epochs: " + str(max_epochs))
+        print("batch_size: " + str(batch_size))
+        print("frames_per_timeslice: " + str(frames_per_timeslice))
+        print("data_location: " + str(data_location))
+        print("model_file_name: " + str(model_file_name))
+        print("model_weights_file_name: " + str(model_weights_file_name))
+        print("transform: " + str(transform))
+        print("transform_append: " + str(transform_append))
+        print("fourier_eeg_bands: " + str(fourier_eeg_bands))
+        print("early_stopping: " + str(early_stopping))
+        print("num_columns: " + str(num_columns))
+        print("num_rows: " + str(num_rows))
+        print("drop_columns: " + str(drop_columns))
+        print("kernel_size: " + str(kernel_size))
+        raise e
 
     return context
 
