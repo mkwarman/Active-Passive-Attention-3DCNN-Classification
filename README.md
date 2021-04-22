@@ -47,9 +47,9 @@ Setup differs based on what data you wish to classify.
 1. Execute `python` to initialize the interpreter
 1. Execute `import classify` if you wish to classify DSI-24 data, or `import classify_stew as classify` if you want to classify STEW data
 1. Execute `context = classify.do_classification()` to classify data with default parameters and save capture the resulting context
-   * Use the parameter `force_training=True` to force training rather than use any previously existing model weights.
-   * Use the parameter `max_epochs=N` to override the MAX_EPOCHS value found in the settings file.
-   * Use the parameter `batch_size=N` to Override the BATCH_SIZE value found in the settings file.
+   * Use the parameter `force_training` to "True" force training rather than use any previously existing model weights or "False" (default) to load existing model weights when they exist.
+   * Use the parameter `max_epochs` to override the MAX_EPOCHS value found in the settings file.
+   * Use the parameter `batch_size` to Override the BATCH_SIZE value found in the settings file.
    * Use the parameter `frames_per_timeslice` to override the FRAMES_PER_TIMESLICE value found in the settings file.
    * Use the parameter `data_location` to override the DATA_LOCATION value found in the settings file.
    * Use the parameter `model_file_name` to override the MODEL_FILE_NAME value found in the settings file.
