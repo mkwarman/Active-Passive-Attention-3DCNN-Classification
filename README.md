@@ -1,4 +1,4 @@
-# 3DCNN
+# Comparison of Active and Passive Attention Based Tasks Using EEG Waves with Convolutional Neural Network
 
 ## Installation
 
