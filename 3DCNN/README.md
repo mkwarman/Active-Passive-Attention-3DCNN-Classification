@@ -47,12 +47,26 @@ Setup differs based on what data you wish to classify.
 1. Execute `python` to initialize the interpreter
 1. Execute `import classify` if you wish to classify DSI-24 data, or `import classify_stew as classify` if you want to classify STEW data
 1. Execute `context = classify.do_classification()` to classify data with default parameters and save capture the resulting context
-   * Use the parameter `force_training=True` to force training rather than use any previously existing model weights
-   * Use the parameter `max_epochs=N` to override the MAX_EPOCHS value found in the settings file
-   * Use the parameter `batch_size=N` to Override the BATCH_SIZE value found in the settings file
+   * Use the parameter `force_training=True` to force training rather than use any previously existing model weights.
+   * Use the parameter `max_epochs=N` to override the MAX_EPOCHS value found in the settings file.
+   * Use the parameter `batch_size=N` to Override the BATCH_SIZE value found in the settings file.
+   * Use the parameter `frames_per_timeslice` to override the FRAMES_PER_TIMESLICE value found in the settings file.
+   * Use the parameter `data_location` to override the DATA_LOCATION value found in the settings file.
+   * Use the parameter `model_file_name` to override the MODEL_FILE_NAME value found in the settings file.
+   * Use the parameter `model_weights_file_name` to override the MODEL_WEIGHTS_FILE_NAME value found in the settings file.
+   * Use the parameter `transform` to "fourier" or "wvd" for Fourier or WVD transformation, or None (default) for no transformation. This may change number of columns and rows automatically.
+   * Use the parameter `transform_append` to set whether fourier transformation data should be appended to raw data or replace it (default).
+   * Use the parameter `fourier_eeg_bands` to override the fourier.DEFAULT_EEG_BANDS value found in the settings file.
+   * Use the parameter `early_stopping` to "True" to enable or "False" (default) to disable early stopping during training.
+   * Use the parameter `num_columns` to override the TIMESLICE_COLUMNS value found in the settings file.
+   * Use the parameter `num_rows` to override the TIMESLICE_ROWS value found in the settings file.
+   * Use the parameter `drop_columns` to override the DROP_COLUMNS value found in the settings file.
+   * Use the parameter `kernel_size` to override the KERNEL_SIZE value found in the settings file.
 1. Once the training (if applicable) is complete, use the following commands to make predictions:
    * Execute `context.make_predictions(N)` to make N predictions, the program will output the level of certainty for each label. You can include the parameter `offset=X` to skip X number of data points before making the predictions
    * Execute `context.check_predictions(N)` to check N predictions, the program will only output when the predictions are incorrect. You could then use `make_predictions` (above) with an offset to determine the program's certainty of each label if desired. You can include the parameter `offset=X` to skip X number of data points before making the predictions. You can include the parameter `verbose=True` to force the program to output when predictions are correct as well as incorrect.
+   * Execute `context.get_accuracy()` to get the model's accuracy.
+   * Execute `context.get_average_prediction_error()` to calculate and return the average error over all validation data predictions.
 
 ## Advanced Usage
 
