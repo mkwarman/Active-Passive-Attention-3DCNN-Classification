@@ -1,3 +1,0 @@
-numpy==1.16.6
-pyEDFlib==0.1.18
-scipy==1.2.3

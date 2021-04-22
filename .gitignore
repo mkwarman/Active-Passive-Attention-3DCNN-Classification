@@ -131,6 +131,7 @@ dmypy.json
 # Other
 .DS_Store
 _data*
+_log*
 venv*
 .vscode
 *.h5
