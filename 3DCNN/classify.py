@@ -299,9 +299,6 @@ def train_model(model, train_dataset, validation_dataset, max_epochs,
     model.compile(loss="categorical_crossentropy",
                   optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
                   metrics=["acc"])
-    # model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
-    #               loss=tf.keras.losses.CategoricalCrossentropy(),
-    #               metrics=[tf.keras.metrics.CategoricalCrossentropy()])
     save_model(model, model_file_name)
 
     # Define callbacks
@@ -365,15 +362,15 @@ def do_classification(force_training=False,
         print("Building timeslices...")
 
         timeslice_dict = build_timeslices(data, frames_per_timeslice,
-                                        onehot_to_label, num_columns,
-                                        num_rows)
+                                          onehot_to_label, num_columns,
+                                          num_rows)
 
         if transform is not None:
             print("\nComputing tranforms...")
             timeslice_dict = load_transform_data(timeslice_dict, num_columns,
-                                                num_rows, transform,
-                                                fourier_eeg_bands,
-                                                append=transform_append)
+                                                 num_rows, transform,
+                                                 fourier_eeg_bands,
+                                                 append=transform_append)
 
             # Update dimensions to match the transformed timeslice dimensions
             frames_per_timeslice, num_columns, num_rows = \
@@ -385,32 +382,30 @@ def do_classification(force_training=False,
         context.set_timeslice_dict(timeslice_dict)
 
         ordered_timeslices, ordered_labels = get_ordered_data(timeslice_dict)
-        shuffled_timeslices, shuffled_labels = shuffle_together(ordered_timeslices,
-                                                                ordered_labels)
+        shuffled_timeslices, shuffled_labels = \
+            shuffle_together(ordered_timeslices, ordered_labels)
         train_labels, validation_labels = \
             split_data(shuffled_labels, settings.DATA_SPLIT_PERCENTAGE)
         train_data, validation_data = \
             split_data(shuffled_timeslices, settings.DATA_SPLIT_PERCENTAGE)
         context.set_data(train_data, train_labels,
-                        validation_data, validation_labels)
+                         validation_data, validation_labels)
 
         print("\nThe number of training samples is {0}"
-            .format(len(train_labels)))
+              .format(len(train_labels)))
         print("The number of validation samples is {0}\n"
-            .format(len(validation_labels)))
+              .format(len(validation_labels)))
 
         print("Building datasets...\n")
 
-        train_dataset, validation_dataset = define_data_loaders(train_data,
-                                                                train_labels,
-                                                                validation_data,
-                                                                validation_labels,
-                                                                batch_size)
+        train_dataset, validation_dataset = \
+            define_data_loaders(train_data, train_labels, validation_data,
+                                validation_labels, batch_size)
         context.set_datasets(train_dataset, validation_dataset)
 
         model = None
         if force_training or not (path.exists(model_file_name) and
-                                path.exists(model_weights_file_name)):
+                                  path.exists(model_weights_file_name)):
             print("Building model...\n")
             model = build_model(num_columns,
                                 num_rows,
@@ -419,21 +414,22 @@ def do_classification(force_training=False,
                                 kernel_size)
             model.summary()
             train_model(model, train_dataset, validation_dataset, max_epochs,
-                        model_file_name, model_weights_file_name, early_stopping)
+                        model_file_name, model_weights_file_name,
+                        early_stopping)
             print("\nTraining complete.\n")
         else:
             model = load_model(model_file_name)
             print("\nLoaded model from {0}\n"
-                .format(model_file_name))
+                  .format(model_file_name))
             model.summary()
             model.load_weights(model_weights_file_name)
             print("\nLoaded weights from {0}\n"
-                .format(model_weights_file_name))
+                  .format(model_weights_file_name))
 
         context.set_model(model)
 
     except Exception as e:
-        print("Blew up with these parameters: ")
+        print("Classification failed for the following parameters: ")
         print("force_training: " + str(force_training))
         print("max_epochs: " + str(max_epochs))
         print("batch_size: " + str(batch_size))
