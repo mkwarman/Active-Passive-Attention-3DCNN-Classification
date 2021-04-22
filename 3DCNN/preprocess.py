@@ -43,6 +43,7 @@ def preprocess_file(filename, input_directory, output_directory):
 def preprocess_files_in_directory(input_directory, output_directory):
     filenames = listdir(input_directory)
     for filename in filenames:
+        print("\n\nPreprocessing file: {0}\n".format(filename))
         preprocess_file(filename, input_directory, output_directory)
 
 
